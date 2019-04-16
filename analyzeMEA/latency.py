@@ -211,3 +211,92 @@ def calculateLatencyParametersSweeps(eventSample, samples_sweeps, spikes_sweeps,
     outDict['median'] = np.nanmedian(latencies,axis=1)
     outDict['stdev'] = np.nanstd(latencies,axis=1)
     return outDict
+
+
+
+def determineThresholdCrossings(latencyDict):
+    """
+    Calculate threshold crossings for all units in latencyDict
+
+    Inputs:
+        latencyDict - dictionary, output of calculateLatencyParameters
+
+    Outputs:
+        latenciesAboveThreshold - ndarray, latencies of crossing upper CI, in order of latencyDict['units']
+        latenciesBelowThreshold - ndarray, latencies of crossing lower CI
+    """
+
+    latenciesAboveThreshold = []
+    latenciesBelowThreshold = []
+
+    for unitInd, unit in enumerate(latencyDict['units']):
+        temp = determineThresholdCrossing(latencyDict['latencies'][unitInd,:],latencyDict['latenciesBaseline'][unitInd,:,:])
+        print('Unit {0}, {1:0.3f}; {2:0.3f}'.format(unit,temp[0],temp[1]))
+        latenciesAboveThreshold.append(temp[0])
+        latenciesBelowThreshold.append(temp[1])
+
+    latenciesAboveThreshold = np.array(latenciesAboveThreshold)
+    latenciesBelowThreshold = np.array(latenciesBelowThreshold)
+
+    return latenciesAboveThreshold, latenciesBelowThreshold
+
+
+def determineThresholdCrossing(latencies, baselineLatencies, alpha=0.001):
+    """
+    Determines when the latencies cross the significance level designated by alpha.
+    Confidence intervales of the baseline latency distribution are determined by applying the Dvoretzky-Kiefer-Wolfowitz inequality.
+
+    Inputs:
+        latencies - np.array, actual latencies
+        baselineLatencies - np.array, shuffled latencies (if multidimensional, will be reshaped)
+
+    Outputs:
+        latencyAboveThreshold - float, latency when the lower confidence interval is crossed (e.g., larger fraction than expected by baseline distribution)
+        latencyBelowThreshold - float, latency when the upper confidence interval is crossed (e.g., smaller fraction than expected by baseline distribution)
+            either output will be -1 when the given interval is not crossed
+
+    Written by AE 4/16/2019
+    """
+    baselineLatencies = np.sort(np.reshape(baselineLatencies,-1)) ## making sure the array is sorted and in one dimension
+    numSamples = len(baselineLatencies)
+    lower = np.array(baselineLatencies - epsilon(numSamples, alpha))
+    upper = np.array(baselineLatencies + epsilon(numSamples,alpha))
+
+    significant = 0
+    for i, latenc in enumerate(np.sort(latencies)):
+        actualFraction = i/len(latencies)
+        try:
+            lowerFraction = np.where(lower > latenc)[0][0]/len(lower)
+        except IndexError:
+            if significant == 0:
+                latencyAboveThreshold = -1
+                significant = 1
+                break
+        if (actualFraction > lowerFraction) & (significant == 0):
+            significant = 1
+            latencyAboveThreshold = latenc
+            break
+
+    significant = 0 ## resetting significance for testing crossing in the negative direction
+    upperFraction = 0
+    for i, latenc in enumerate(np.sort(latencies)):
+        actualFraction = i/len(latencies)
+        try:
+            upperFraction = np.where(upper > latenc)[0][0]/len(upper)
+        except IndexError:
+
+            if significant == 0:
+                latencyBelowThreshold = -1
+                significant = 1
+                break
+        if (actualFraction < upperFraction) & (significant == 0):
+            significant = 1
+            latencyBelowThreshold = latenc
+            break
+    if 'latencyBelowThreshold' not in locals():
+        latencyBelowThreshold = -1
+    return latencyAboveThreshold, latencyBelowThreshold
+
+
+def epsilon(n, alpha=0.01):
+    return np.sqrt(1. / (2. * n) * np.log(2. / alpha))
