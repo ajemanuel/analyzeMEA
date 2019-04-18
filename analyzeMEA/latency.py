@@ -214,12 +214,13 @@ def calculateLatencyParametersSweeps(eventSample, samples_sweeps, spikes_sweeps,
 
 
 
-def determineThresholdCrossings(latencyDict):
+def determineThresholdCrossings(latencyDict, alpha=0.001):
     """
     Calculate threshold crossings for all units in latencyDict
 
     Inputs:
         latencyDict - dictionary, output of calculateLatencyParameters
+        alpha - float, significance level
 
     Outputs:
         latenciesAboveThreshold - ndarray, latencies of crossing upper CI, in order of latencyDict['units']
@@ -230,7 +231,7 @@ def determineThresholdCrossings(latencyDict):
     latenciesBelowThreshold = []
 
     for unitInd, unit in enumerate(latencyDict['units']):
-        temp = determineThresholdCrossing(latencyDict['latencies'][unitInd,:],latencyDict['latenciesBaseline'][unitInd,:,:])
+        temp = determineThresholdCrossing(latencyDict['latencies'][unitInd,:],latencyDict['latenciesBaseline'][unitInd,:,:], alpha=alpha)
         print('Unit {0}, {1:0.3f}; {2:0.3f}'.format(unit,temp[0],temp[1]))
         latenciesAboveThreshold.append(temp[0])
         latenciesBelowThreshold.append(temp[1])
@@ -293,6 +294,8 @@ def determineThresholdCrossing(latencies, baselineLatencies, alpha=0.001):
             significant = 1
             latencyBelowThreshold = latenc
             break
+    if 'latencyAboveThreshold' not in locals():
+        latencyAboveThreshold = -1
     if 'latencyBelowThreshold' not in locals():
         latencyBelowThreshold = -1
     return latencyAboveThreshold, latencyBelowThreshold
