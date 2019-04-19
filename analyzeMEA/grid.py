@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io
+import analyzeMEA.rastPSTH
 
 def plotActualPositions(filename, setup='alan', center=True, labelPositions=True, save=False):
     """
@@ -76,6 +77,81 @@ def plotActualPositions(filename, setup='alan', center=True, labelPositions=True
     a0.set_aspect('equal')
     if save:
         f0.savefig('gridPositions.png')
+
+def plotGridPSTHs(filename, bs_window, samples, spikes,
+                    binSize=0.02,
+                    goodSteps=None, units='all', numRepeats=None, numSteps=1, sampleRate=20000,
+                    plot=True, xscale = 1, yscale = 1, save=False, force=0, center=True,
+                    doShuffle=False, numShuffles=10000, saveString=''):
+    """
+    Plots each unit's mechanical spatial receptive field as a PSTH at each grid location.
+    Inputs:
+    filename - str; .mat filename produced by indentOnGrid
+    bs_window - sequence, len 2; start and stop of baseline window for PSTH
+    samples - sequence; list of samples at which spikes are detected for each sweep
+    spikes - sequence; list of spike IDs corresponding to samples in goodsamples_sweeps
+    binSize - float; size of PSTh bins (in s)
+    goodSteps - None or sequence; list of steps to be included
+    units - None or str; sequence of units to plot, if None, calculated by finding unique value in spikes
+    sampleRate - int; sample rate in Hz, defaults to 20000
+    saveString - string; string to add to filename, default ''
+
+    Outputs:
+    outdict -dictionary; ...
+    """
+
+    gridIndent = scipy.io.loadmat(filename)
+    if numRepeats is None:
+        numRepeats = int(gridIndent['num_repetitions'])
+    try:
+        gridPosActual = gridIndent['grid_positions_actual'] #
+        gridPosActual = np.transpose(gridPosActual)
+        numPositions = gridPosActual.shape[-1]
+        if gridIndent['num_repetitions'] > 1:
+            gridPosActual = gridPosActual[0] # taking the first grid positions here -- perhaps change this in the future
+    except KeyError:
+        print('File not from indentOnGrid')
+        return -1
+    if center:
+        gridPosActual[0] = gridPosActual[0] - np.mean(gridPosActual[0])
+        gridPosActual[1] = gridPosActual[1] - np.mean(gridPosActual[1])
+
+    ### generating positionIndices, which will be used to index the samples/spikes for PSTH generation
+    positionIndices = np.zeros((numPositions,numSteps*numRepeats))
+    for pos in range(numPositions):
+        for repeat in range(numRepeats):
+            positionIndices[pos,int(numSteps*repeat):int(numSteps*(repeat+1))] = np.arange(pos*numSteps+(repeat*numSteps*numPositions),pos*numSteps+numSteps+(repeat*numSteps*numPositions))
+    positionIndices = np.int32(positionIndices)
+
+
+    outDict = gridIndent # save all variables from the grid file
+    numX = int((gridIndent['max_x'] - gridIndent['min_x'])/gridIndent['grid_spacing'])+1
+    numY = int((gridIndent['max_y'] - gridIndent['min_y'])/gridIndent['grid_spacing'])+1
+    ind = []
+    for position in gridIndent['grid_positions']:
+        for i, position2 in enumerate(gridIndent['grid_positions_rand']):
+            if np.all(position == position2):
+                ind.append(i) ## ind is a an index that can reorder the position responses for making a matrix
+    PSTHs = {}
+    if units is None:
+        units = np.unique(np.concatenate(spikes))
+    outDict['units'] = units
+    for i, position in enumerate(positionIndices):
+        PSTHs[i] = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in position],[spikes[n] for n in position],units=units,bs_window=bs_window)
+    outDict['PSTHs'] = PSTHs
+    if plot:
+        plt.figure(figsize=[6,6])
+        ax = plt.axes()
+        for i, position in enumerate(np.transpose(gridPosActual)):
+            ax.plot(np.array([-.25,0.25])*xscale+position[0], np.array([0,0])+position[1],color='gray',linewidth=2)
+            ax.plot((PSTHs[i]['xaxis']-0.5)*xscale+position[0],np.mean(PSTHs[i]['psths_bs'],axis=1)*yscale+position[1],color='k',linewidth=1)
+        scaleBarX = ax.plot(np.max(gridPosActual[0])+1+np.array(0,1])*xscale,np.array(np.mean(gridPosActual[1]),np.mean(gridPosActual[1])),color='k',linewidth=2)
+        scaleBarY = ax.plot(np.max(gridPosActual[0])+1+np.array(0,0),np.array(np.mean(gridPosActual[1]),np.mean(gridPosActual[1]+1)*yscale),color='k',linewidth=2)
+        ax.set_xlabel('mm')
+        ax.set_ylabel('mm')
+        ax.set_title('Multiunit RF, {} mN'.format(force))
+    return outDict
+
 
 def plotGridResponses(filename, window, bs_window, samples, spikes,
                         goodSteps=None, units='all', numRepeats=None, numSteps=1, sampleRate=20000,
