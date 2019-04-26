@@ -71,7 +71,7 @@ def importJRCLUST(filepath, annotation='single', depth=250):
     ## calculating layer
     depths = outDict['unitPosXY'][1] - depth
     outDict['depths'] = depths
-    layer_demarcations = -np.array([119,416.5,535.5,952]) ## for S1 recordings; from post-hoc anatomy with DAPI/layer V labeled + DiI, appears to match well with depth of Layer IV optotagged units
+    layer_demarcations = -np.array([119,416.5,535.5,952,1300]) ## for S1 recordings; from post-hoc anatomy with DAPI/layer V labeled + DiI, appears to match well with depth of Layer IV optotagged units
     layers = []
     for d in depths:
         if d > layer_demarcations[0]:
@@ -82,8 +82,10 @@ def importJRCLUST(filepath, annotation='single', depth=250):
             layers.append(4)
         elif (d > layer_demarcations[3]) & (d < layer_demarcations[2]):
             layers.append(5)
-        elif d < layer_demarcations[3]:
+        elif (d > layer_demarcations[4]) & (d < layer_demarcations[3]):
             layers.append(6)
+        else:
+            layers.append(10) ## not cortical
     layers = np.array(layers)
     outDict['layers'] = layers
 
