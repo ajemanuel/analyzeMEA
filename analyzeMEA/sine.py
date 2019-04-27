@@ -55,7 +55,7 @@ def calculateSpikesPerCycle(sineFile,samples,spikes,sampleRate=20000):
     outDict['baselines'] = baselines
     return outDict
 
-def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=False):
+def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=False, saveString = ''):
     """
     Plot Raster and PSTH for each unit at each frequency.
     Inputs:
@@ -108,8 +108,25 @@ def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=
             if save == True:
                 plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,transparent=True)
             elif save == 'png':
-                plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,transparent=True)
+                plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=300,transparent=True)
             elif save == 'pdf':
                 plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),transparent=True)
             plt.show()
             plt.close()
+
+def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000):
+    phaseStarts = np.arange(stimTimes[0],stimTimes[1],1/frequency/(stimTimes[1]-stimTimes[0]))
+    phaseEnds = phaseStarts + 1/frequency
+    spikeTimes = spikeSamples/sampleRate
+    xlims = [0, 1/frequency]
+    f, ax = plt.subplots(2,1,figsize=[2.5,3],gridspec_kw={'height_ratios':[1,5]})
+    for i, (start,end) in enumerate(zip(phaseStarts, phaseEnds)):
+        tempTimes = spikeTimes[(spikeTimes > start) & (spikeTimes < end)]  - start
+        ax[1].plot(tempTimes,np.ones(len(tempTimes))*i,'|',mew=0.5,markersize=4)
+    sineWaveX = np.arange(0,1/frequency,1/frequency/100)
+    sineWaveY = np.sin((np.pi*2*frequency) * sineWaveX - np.pi/2)
+    ax[0].plot(sineWaveX,sineWaveY)
+    ax[0].set_xlim(xlims)
+    ax[1].set_xlim(xlims)
+    ax[0].set_xticks([])
+    ax[0].set_yticks([])
