@@ -15,14 +15,24 @@ def importSineData(sineFile):
         baseline - int, time (in samples) prior to stimulus (trials are 1/4 no stim, 1/2 stim, 1/4 no stim)
         sampleRate - int, stimulus sample rate
     """
-    stimInfo = scipy.io.loadmat(sineFile,variable_names=['sineAmplitude','sineFrequency','trigger','Fs'])
-    sineAmplitudes = stimInfo['sineAmplitude'][:,0]
+    try:
+        stimInfo = scipy.io.loadmat(sineFile,variable_names=['sineAmplitude','sineFrequency','trigger','Fs'])
+        stimType = 'step'
+        sineAmplitudes = stimInfo['sineAmplitude'][:,0]
+
+    except:
+        stimInfo = scipy.io.loadmat(sineFile,variable_names=['sineFrequency','trigger','Fs','forceRange'])
+        stimType = 'ramp'
+        forceRange = stimInfo['forceRange'][0,:]
     frequencies = stimInfo['sineFrequency'][:,0]
     sweepDuration_samples = np.where(stimInfo['trigger'][1:] < stimInfo['trigger'][:-1])[0][0] - np.where(stimInfo['trigger'][1:] > stimInfo['trigger'][:-1])[0][0]+2
     baseline = sweepDuration_samples/4
     sampleRate = stimInfo['Fs']
 
-    return sineAmplitudes, frequencies, baseline, sampleRate
+    if stimType == 'step':
+        return sineAmplitudes, frequencies, baseline, sampleRate
+    elif stimType == 'ramp':
+        return forceRange, frequencies, baseline, sampleRate
 
 def calculateSpikesPerCycle(sineFile,samples,spikes,sampleRate=20000):
     outDict = {}
@@ -68,51 +78,95 @@ def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=
     Output: displays and saves pyplot plots
     """
     sineAmplitudes, frequencies, baseline, Fs = importSineData(sineFile)
-    if (len(sineAmplitudes) != len(samples)) or (len(sineAmplitudes) != len(spikes)):
+    if (len(frequencies) != len(samples)) or (len(frequencies) != len(spikes)):
         print('Number of trials does not match stim file.')
         return
+    if len(sineAmplitudes) == len(frequencies): ## this wo n't work if the ramp stimulus is used with only two frequencies
+        stimType = 'step'
+    else:
+        stimType = 'ramp'
     xlims = [-baseline/Fs,baseline*3/Fs] # used for all plots, so defining here
     uniqueFrequencies = np.unique(frequencies)
-    for frequency in uniqueFrequencies:
-        ind = np.where(frequencies == frequency)[0]
-        amplitudes = sineAmplitudes[ind]
-        sortInd = np.argsort(amplitudes)
-        overallInd = ind[sortInd] ## this index all sweeps == frequency, sorted by amplitude of sine wave
 
-        ## generating PSTH -- an average of all trials at the current frequency
-        units = np.unique(np.concatenate(spikes))
-        tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in overallInd],[spikes[n] for n in overallInd],units=units,bs_window=[0,baseline/Fs])
+    if stimType == 'step':
+        for frequency in uniqueFrequencies:
+            ind = np.where(frequencies == frequency)[0]
+            amplitudes = sineAmplitudes[ind]
+            sortInd = np.argsort(amplitudes)
+            overallInd = ind[sortInd] ## this index all sweeps == frequency, sorted by amplitude of sine wave
 
-        ## plotting raster and PSTH for each unit
-        for i, unit in enumerate(units):
-            f, ax = plt.subplots(2,1,figsize=[3.5,3],gridspec_kw={'height_ratios':[4,1]})
-            for j, index in enumerate(overallInd):
-                samps = (np.array(samples[index][spikes[index] == unit]) - baseline)/sampleRate
-                sps = np.array(spikes[index][spikes[index] == unit]) - unit + j
-                ax[0].plot(samps,sps,'|',color='gray',markersize=4,mew=0.5)
-                ax[1].plot(tempPSTH['xaxis']-baseline/sampleRate,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
-            # indicating where the stimulus occurred
-            forceBarY = j + 3
-            ll = ax[0].plot((0,baseline*2/sampleRate),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
-            ll[0].set_clip_on(False)
-            # labeling and formatting plot
-            ax[0].set_xlim(xlims)
-            ax[1].set_xlim(xlims)
-            ax[0].set_ylim([-1,j+1])
-            ax[0].set_xticks([])
-            ax[1].set_xlabel('Time (s)')
-            ax[1].set_ylabel('Rate (Hz)')
-            ax[0].set_ylabel('Trial')
-            ax[0].set_title('Unit {0:d}, {1:d} Hz'.format(unit,frequency),pad=8)
-            plt.subplots_adjust(left=0.15,bottom=0.15,top=0.9,hspace=0.05,right=0.95)
-            if save == True:
-                plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,transparent=True)
-            elif save == 'png':
-                plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=300,transparent=True)
-            elif save == 'pdf':
-                plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),transparent=True)
-            plt.show()
-            plt.close()
+            ## generating PSTH -- an average of all trials at the current frequency
+            units = np.unique(np.concatenate(spikes))
+            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in overallInd],[spikes[n] for n in overallInd],units=units,bs_window=[0,baseline/Fs])
+
+            ## plotting raster and PSTH for each unit
+            for i, unit in enumerate(units):
+                f, ax = plt.subplots(2,1,figsize=[3.5,3],gridspec_kw={'height_ratios':[4,1]})
+                for j, index in enumerate(overallInd):
+                    samps = (np.array(samples[index][spikes[index] == unit]) - baseline)/sampleRate
+                    sps = np.array(spikes[index][spikes[index] == unit]) - unit + j
+                    ax[0].plot(samps,sps,'|',color='gray',markersize=4,mew=0.5)
+                    ax[1].plot(tempPSTH['xaxis']-baseline/sampleRate,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
+                # indicating where the stimulus occurred
+                forceBarY = j + 3
+                ll = ax[0].plot((0,baseline*2/sampleRate),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
+                ll[0].set_clip_on(False)
+                # labeling and formatting plot
+                ax[0].set_xlim(xlims)
+                ax[1].set_xlim(xlims)
+                ax[0].set_ylim([-1,j+1])
+                ax[0].set_xticks([])
+                ax[1].set_xlabel('Time (s)')
+                ax[1].set_ylabel('Rate (Hz)')
+                ax[0].set_ylabel('Trial')
+                ax[0].set_title('Unit {0:d}, {1:d} Hz'.format(unit,frequency),pad=8)
+                plt.subplots_adjust(left=0.15,bottom=0.15,top=0.9,hspace=0.05,right=0.95)
+                if save == True:
+                    plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,transparent=True)
+                elif save == 'png':
+                    plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=300,transparent=True)
+                elif save == 'pdf':
+                    plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),transparent=True)
+                plt.show()
+                plt.close()
+    else:
+        for frequency in uniqueFrequencies:
+            ind = np.where(frequencies == frequency)[0]
+
+            ## generating PSTH -- an average of all trials at the current frequency
+            units = np.unique(np.concatenate(spikes))
+            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in ind],[spikes[n] for n in ind],units=units,bs_window=[0,baseline/Fs],duration=baseline/Fs*4)
+
+            ## plotting raster and PSTH for each unit
+            for i, unit in enumerate(units):
+                f, ax = plt.subplots(2,1,figsize=[5,3],gridspec_kw={'height_ratios':[5,1]})
+                for j, index in enumerate(ind):
+                    samps = (np.array(samples[index][spikes[index] == unit]) - baseline)/sampleRate
+                    sps = np.array(spikes[index][spikes[index] == unit]) - unit + j +1
+                    ax[0].plot(samps,sps,'|',color='gray',markersize=10,mew=0.5)
+                    ax[1].plot(tempPSTH['xaxis']-baseline/sampleRate,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
+                # indicating where the stimulus occurred
+                forceBarY = (j + 1)/50 + j+1.5
+                ll = ax[0].plot((0,baseline*2/sampleRate),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
+                ll[0].set_clip_on(False)
+                # labeling and formatting plot
+                ax[0].set_xlim(xlims)
+                ax[1].set_xlim(xlims)
+                ax[0].set_ylim([0.5,j+1.5])
+                ax[0].set_xticks([])
+                ax[1].set_xlabel('Time (s)')
+                ax[1].set_ylabel('Rate (Hz)')
+                ax[0].set_ylabel('Trial')
+                ax[0].set_title('Unit {0:d}, {1:d} Hz'.format(unit,frequency),pad=8)
+                plt.subplots_adjust(left=0.15,bottom=0.15,top=0.9,hspace=0.05,right=0.95)
+                if save == True:
+                    plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,transparent=True)
+                elif save == 'png':
+                    plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=300,transparent=True)
+                elif save == 'pdf':
+                    plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),transparent=True)
+                plt.show()
+                plt.close()
 
 def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000):
     phaseStarts = np.arange(stimTimes[0],stimTimes[1],1/frequency/(stimTimes[1]-stimTimes[0]))
