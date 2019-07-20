@@ -83,7 +83,8 @@ def plotGridPSTHs(filename, bs_window, samples, spikes,
                     sampleRate=20000,plot=True, xscale = 1, yscale = 1, save=False, force=0, center=True,
                     saveString=''):
     """
-    Plots each unit's mechanical spatial receptive field as a PSTH at each grid location.
+    Plots multiunit mechanical spatial receptive field as a PSTH at each grid location
+    and provides output allowing for plotting individual units.
     Inputs:
     filename - str; .mat filename produced by indentOnGrid
     bs_window - sequence, len 2; start and stop of baseline window for PSTH
@@ -143,16 +144,21 @@ def plotGridPSTHs(filename, bs_window, samples, spikes,
         ax = plt.axes()
         for i, position in enumerate(np.transpose(gridPosActual)):
             ax.plot(np.array([-.25,0.25])*xscale+position[0], np.array([0,0])+position[1],color='gray',linewidth=2)
-            ax.plot((PSTHs[i]['xaxis']-0.5)*xscale+position[0],np.mean(PSTHs[i]['psths_bs'],axis=1)*yscale+position[1],color='k',linewidth=1)
+            tempPSTH = np.sum(PSTHs[i]['psths'],axis=1)
+            tempPSTH = tempPSTH - np.mean(tempPSTH[:int(0.25/binSize)])
+            ax.plot((PSTHs[i]['xaxis']-0.5)*xscale+position[0],tempPSTH*yscale+position[1],color='k',linewidth=1)
         scaleBarX = ax.plot(np.max(gridPosActual[0])+0.6+np.array([0,1])*0.25,np.array((np.mean(gridPosActual[1]),np.mean(gridPosActual[1]))),color='k',linewidth=4,scalex=False,scaley=False)
         scaleBarY = ax.plot(np.max(gridPosActual[0])+0.6+np.array([0,0]),np.array((np.mean(gridPosActual[1]),np.mean(gridPosActual[1]+1)*0.5)),color='k',linewidth=4,scalex=False,scaley=False)
-        scaleBarTextX = ax.text(np.max(gridPosActual[0])+0.6+0.125,np.mean(gridPosActual[1])-.1,'{} s'.format(0.25/xscale), horizontalalignment='center',verticalalignment='top')
-        scaleBarTextY = ax.text(np.max(gridPosActual[0])+0.6+0.125,np.mean(gridPosActual[1])+0.25,'{0:0.0f} spikes/step'.format(0.5/yscale), horizontalalignment='left',verticalalignment='center')
+        scaleBarTextX = ax.text(np.max(gridPosActual[0])+0.6+0.125,np.mean(gridPosActual[1])-.1,'{0:0.2f} s'.format(0.25/xscale), horizontalalignment='center',verticalalignment='top')
+        scaleBarTextY = ax.text(np.max(gridPosActual[0])+0.6+0.125,np.mean(gridPosActual[1])+0.25,'{0:0.1f} spikes/step'.format(0.5/yscale), horizontalalignment='left',verticalalignment='center')
         scaleBarX[0].set_clip_on(False)
         scaleBarY[0].set_clip_on(False)
         ax.set_xlabel('mm')
         ax.set_ylabel('mm')
         ax.set_title('Multiunit RF, {} mN'.format(force))
+        ax.set_aspect(1)
+        if save:
+            plt.savefig('GridPSTH_{0}mN_{1}.png'.format(force, saveString),bbox_inches='tight',bbox_extra_artists=[scaleBarTextX,scaleBarTextY],transparent=True,dpi=300)
     return outDict
 
 

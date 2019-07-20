@@ -1,5 +1,5 @@
 from scipy.signal import butter, lfilter, filtfilt, periodogram
-import read_rhd_controller
+import analyzeMEA.read_rhd_controller as read_rhd_controller
 import numpy as np
 
 

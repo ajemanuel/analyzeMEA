@@ -1,7 +1,7 @@
 import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
-import rastPSTH
+import analyzeMEA.rastPSTH
 import scipy.ndimage
 
 def extractLaserPositions(matFile, voltageToDistance=3.843750000e+03):
@@ -148,7 +148,7 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
                              (laserPositions[1] > (ymin + binSizeMicron*binxy[1])) &
                              (laserPositions[1] < ymin + binSizeMicron*(binxy[1]+1)))[0]
         if len(tempPositions > 0):
-            tempPSTH = rastPSTH.makeSweepPSTH(0.001,[samplesList[a] for a in tempPositions],[spikesList[a] for a in tempPositions],
+            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.001,[samplesList[a] for a in tempPositions],[spikesList[a] for a in tempPositions],
                 units=units, duration=float(parameters['ISI']), rate=False)
             for unit in range(numUnits):
                 output[binxy[0],binxy[1],unit] = np.mean(tempPSTH['psths'][window[0]:window[1],unit]) - np.mean(tempPSTH['psths'][bs_window[0]:bs_window[1],unit])

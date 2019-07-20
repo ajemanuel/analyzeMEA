@@ -81,7 +81,7 @@ def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=
     if (len(frequencies) != len(samples)) or (len(frequencies) != len(spikes)):
         print('Number of trials does not match stim file.')
         return
-    if len(sineAmplitudes) == len(frequencies): ## this wo n't work if the ramp stimulus is used with only two frequencies
+    if len(sineAmplitudes) == len(frequencies): ## this won't work if the ramp stimulus is used with only two frequencies
         stimType = 'step'
     else:
         stimType = 'ramp'
