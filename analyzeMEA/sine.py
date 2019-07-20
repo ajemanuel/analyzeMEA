@@ -34,9 +34,30 @@ def importSineData(sineFile):
     elif stimType == 'ramp':
         return forceRange, frequencies, baseline, sampleRate
 
-def calculateSpikesPerCycle(sineFile,samples,spikes,sampleRate=20000):
+def calculateSpikesPerCycle(sineFile,samples,spikes=None,sampleRate=20000):
+    """
+    Calculate the number of spikes fired per cycle for each unit.
+    Inputs:
+    sineFile - str, matlab file generated when acquiring data
+    samples - list, each component is an array containing the samples at which units fired spikes
+    spikes - None or list, if list, each component is an array containing the unit to which the spike belongs.
+        If none, all spikes are assumed to be of the same unit (unit 1)
+    sampleRate - int, sample rate on intan (or other acqusition device)
+
+    Outputs:
+    outDict - dict containing the following keys:
+        unit - dict for each unit containing the following keys
+            frequency - dict for each frequency containing the following keys:
+                'amplitudes' - ndarray, amplitudes sorted low to high of the sine waves
+                'spikesPerCycle' - ndarray, # of spikes corresponding to the unit for each sine stimulus (corresponds to amplitudes)
+        'evokedSpikes' - ndarray MxN, M = units, N = sweep
+        'units' - ndarray, units included in output
+        'baselines' - ndarray, baseline for each unit
+    """
     outDict = {}
     sineAmplitudes, frequencies, baseline, Fs = importSineData(sineFile)
+    if spikes == None:
+        spikes = [np.ones(len(n),dtype=int) for n in samples] ## generating units (unit 1)
     if (len(sineAmplitudes) != len(samples)) or (len(sineAmplitudes) != len(spikes)):
         print('Number of trials does not match stim file.')
         return
@@ -65,7 +86,7 @@ def calculateSpikesPerCycle(sineFile,samples,spikes,sampleRate=20000):
     outDict['baselines'] = baselines
     return outDict
 
-def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=False, saveString = ''):
+def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,save=False, saveString = ''):
     """
     Plot Raster and PSTH for each unit at each frequency.
     Inputs:
@@ -78,6 +99,8 @@ def plotSineRasters(sineFile,samples,spikes,sampleRate=20000,binSize=0.005,save=
     Output: displays and saves pyplot plots
     """
     sineAmplitudes, frequencies, baseline, Fs = importSineData(sineFile)
+    if spikes == None:
+        spikes = [np.ones(len(n),dtype=int) for n in samples] ## generating units (unit 1)
     if (len(frequencies) != len(samples)) or (len(frequencies) != len(spikes)):
         print('Number of trials does not match stim file.')
         return
