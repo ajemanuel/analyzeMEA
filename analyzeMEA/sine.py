@@ -27,7 +27,7 @@ def importSineData(sineFile):
     frequencies = stimInfo['sineFrequency'][:,0]
     sweepDuration_samples = np.where(stimInfo['trigger'][1:] < stimInfo['trigger'][:-1])[0][0] - np.where(stimInfo['trigger'][1:] > stimInfo['trigger'][:-1])[0][0]+2
     baseline = sweepDuration_samples/4
-    sampleRate = stimInfo['Fs']
+    sampleRate = int(stimInfo['Fs'])
 
     if stimType == 'step':
         return sineAmplitudes, frequencies, baseline, sampleRate
@@ -70,7 +70,7 @@ def calculateSpikesPerCycle(sineFile,samples,spikes=None,sampleRate=20000):
     evokedSpikes = np.zeros((len(units),len(samples))) #
     for i, unit in enumerate(units):
         for j, (sample, spike) in enumerate(zip(samples,spikes)):
-            evokedSpikes[i,j] = np.sum(spike[(sample > baseline) & (sample < baseline * 3)] == unit) - baselines[i] * ((baseline * 3 - baseline)/Fs) ## fix this later if ever using differently sampled stim and acquisition
+            evokedSpikes[i,j] = np.sum(spike[(sample > baseline * (sampleRate/Fs)) & (sample < baseline * (sampleRate/Fs) * 3)] == unit) - baselines[i] * ((baseline * 3 - baseline)/Fs) ## fix this later if ever using differently sampled stim and acquisition
         outDict[unit] = {}
         for frequency in uniqueFrequencies:
             ind = np.where(frequencies == frequency)[0]
@@ -86,7 +86,7 @@ def calculateSpikesPerCycle(sineFile,samples,spikes=None,sampleRate=20000):
     outDict['baselines'] = baselines
     return outDict
 
-def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,save=False, saveString = ''):
+def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,duration=2,save=False, saveString = ''):
     """
     Plot Raster and PSTH for each unit at each frequency.
     Inputs:
@@ -120,19 +120,21 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
 
             ## generating PSTH -- an average of all trials at the current frequency
             units = np.unique(np.concatenate(spikes))
-            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in overallInd],[spikes[n] for n in overallInd],units=units,bs_window=[0,baseline/Fs])
+            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in overallInd],[spikes[n] for n in overallInd],
+                                                        units=units,bs_window=[0,baseline/sampleRate],duration=duration,sample_rate=sampleRate)
 
             ## plotting raster and PSTH for each unit
             for i, unit in enumerate(units):
                 f, ax = plt.subplots(2,1,figsize=[3.5,3],gridspec_kw={'height_ratios':[4,1]})
                 for j, index in enumerate(overallInd):
-                    samps = (np.array(samples[index][spikes[index] == unit]) - baseline)/sampleRate
-                    sps = np.array(spikes[index][spikes[index] == unit]) - unit + j
-                    ax[0].plot(samps,sps,'|',color='gray',markersize=4,mew=0.5)
-                    ax[1].plot(tempPSTH['xaxis']-baseline/sampleRate,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
+                    if len(samples[index]) > 0:
+                        samps =np.array(samples[index])[spikes[index] == unit]/sampleRate - baseline/Fs
+                        sps = np.array(spikes[index][spikes[index] == unit]) - unit + j
+                        ax[0].plot(samps,sps,'|',color='gray',markersize=4,mew=0.5)
+                        ax[1].plot(tempPSTH['xaxis']-baseline/Fs,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
                 # indicating where the stimulus occurred
                 forceBarY = j + 3
-                ll = ax[0].plot((0,baseline*2/sampleRate),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
+                ll = ax[0].plot((0,baseline*2/Fs),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
                 ll[0].set_clip_on(False)
                 # labeling and formatting plot
                 ax[0].set_xlim(xlims)
@@ -192,6 +194,15 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
                 plt.close()
 
 def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000):
+    """
+    Plot a raster for a given stimulus to illustrate the phase of the response.
+    Inputs:
+        spikeSamples - ndarray, list of samples at which spikes occur
+        frequency - int, frequeny of sine stimulus
+        stimTimes - list, len 2, start and end time of stimulus
+        sampleRate - int, sample rate for intan (or other) acquisition
+    Outputs: plots raster
+    """
     phaseStarts = np.arange(stimTimes[0],stimTimes[1],1/frequency/(stimTimes[1]-stimTimes[0]))
     phaseEnds = phaseStarts + 1/frequency
     spikeTimes = spikeSamples/sampleRate
@@ -199,7 +210,7 @@ def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000)
     f, ax = plt.subplots(2,1,figsize=[2.5,3],gridspec_kw={'height_ratios':[1,5]})
     for i, (start,end) in enumerate(zip(phaseStarts, phaseEnds)):
         tempTimes = spikeTimes[(spikeTimes > start) & (spikeTimes < end)]  - start
-        ax[1].plot(tempTimes,np.ones(len(tempTimes))*i,'|',mew=0.5,markersize=4)
+        ax[1].plot(tempTimes,np.ones(len(tempTimes))*i,'.',mew=0.5,markersize=1,color='gray')
     sineWaveX = np.arange(0,1/frequency,1/frequency/100)
     sineWaveY = np.sin((np.pi*2*frequency) * sineWaveX - np.pi/2)
     ax[0].plot(sineWaveX,sineWaveY)
