@@ -160,19 +160,18 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
 
             ## generating PSTH -- an average of all trials at the current frequency
             units = np.unique(np.concatenate(spikes))
-            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in ind],[spikes[n] for n in ind],units=units,bs_window=[0,baseline/Fs],duration=baseline/Fs*4)
-
+            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in ind],[spikes[n] for n in ind],units=units,bs_window=[0,baseline/Fs],duration=baseline/Fs*4,sample_rate=sampleRate)
             ## plotting raster and PSTH for each unit
             for i, unit in enumerate(units):
                 f, ax = plt.subplots(2,1,figsize=[5,3],gridspec_kw={'height_ratios':[5,1]})
                 for j, index in enumerate(ind):
-                    samps = (np.array(samples[index][spikes[index] == unit]) - baseline)/sampleRate
+                    samps = (np.array(samples[index])[np.array(spikes[index]) == unit] - baseline*(sampleRate/Fs))/sampleRate
                     sps = np.array(spikes[index][spikes[index] == unit]) - unit + j +1
                     ax[0].plot(samps,sps,'|',color='gray',markersize=10,mew=0.5)
-                    ax[1].plot(tempPSTH['xaxis']-baseline/sampleRate,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
+                    ax[1].plot(tempPSTH['xaxis']-baseline*(sampleRate/Fs)/sampleRate,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
                 # indicating where the stimulus occurred
                 forceBarY = (j + 1)/50 + j+1.5
-                ll = ax[0].plot((0,baseline*2/sampleRate),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
+                ll = ax[0].plot((0,baseline*2/Fs),[forceBarY,forceBarY],color='k',linewidth=4,scalex=False,scaley=False)
                 ll[0].set_clip_on(False)
                 # labeling and formatting plot
                 ax[0].set_xlim(xlims)
