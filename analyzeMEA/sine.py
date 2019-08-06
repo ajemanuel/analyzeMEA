@@ -192,6 +192,10 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
                 plt.show()
                 plt.close()
 
+
+
+
+
 def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000):
     """
     Plot a raster for a given stimulus to illustrate the phase of the response.
@@ -217,3 +221,134 @@ def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000)
     ax[1].set_xlim(xlims)
     ax[0].set_xticks([])
     ax[0].set_yticks([])
+
+
+def plotSineBumpRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,duration=3,save=False, saveString = ''):
+    """
+    Plot Raster and PSTH for each unit at each frequency.
+    Inputs:
+        sineFile - str, path to matlab file generated during experiment
+        samples - list, spike times associated with sine stimulus
+        spikes - list, units corresponding to spike times
+        sampleRate - int, sample rate of intan acquisition
+        binSize - float, bin size for PSTH
+        save - boolean or str, whether to save plot, can specify 'png' or 'pdf'
+    Output: displays and saves pyplot plots
+    """
+    sineAmplitudes, frequencies, baseline, Fs = importSineData(sineFile)
+    baseline = 10000 ## overwriting baseline for this stimulus type
+    if spikes == None:
+        spikes = [np.ones(len(n),dtype=int) for n in samples] ## generating units (unit 1)
+    if (len(frequencies) != len(samples)) or (len(frequencies) != len(spikes)):
+        print('Number of trials does not match stim file.')
+        return
+    xlims = [-0.5,2.5] # used for all plots, so defining here; this is specific for the sine bumps performed on MWS animals
+    uniqueFrequencies = np.unique(frequencies)
+    for frequency in uniqueFrequencies:
+        ind = np.where(frequencies == frequency)[0]
+        amplitudes = sineAmplitudes[ind]
+        sortInd = np.argsort(amplitudes)
+        overallInd = ind[sortInd] ## this index all sweeps == frequency, sorted by amplitude of sine wave
+
+        ## generating example stimulus trace --- this is all very specific to the bump stimuplus used with MWS mice
+        sineWaveX = np.arange(0,0.25,0.25/100)
+        sineWaveY = np.sin((np.pi*2*frequency) * sineWaveX)
+        stimTrace = np.zeros(len(sineWaveX)*12)
+        stimTrace[200:300] = sineWaveY
+        stimTraceX = np.arange(-0.5,2.5,3/len(stimTrace))
+        ## generating PSTH -- an average of all trials at the current frequency
+        units = np.unique(np.concatenate(spikes))
+        tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in overallInd],[spikes[n] for n in overallInd],
+                                                    units=units,bs_window=[0,baseline/sampleRate],duration=duration,sample_rate=sampleRate)
+
+        ## plotting raster and PSTH for each unit
+        for i, unit in enumerate(units):
+            f, ax = plt.subplots(3,1,figsize=[3.5,4],gridspec_kw={'height_ratios':[1,4,1]})
+            for j, index in enumerate(overallInd):
+                if len(samples[index]) > 0:
+                    samps =np.array(samples[index])[spikes[index] == unit]/sampleRate - baseline/Fs
+                    sps = np.array(spikes[index][spikes[index] == unit]) - unit + j
+                    ax[1].plot(samps,sps,'|',color='gray',markersize=4,mew=0.5)
+                    ax[2].plot(tempPSTH['xaxis']-baseline/Fs,tempPSTH['psths_bs'][:,i],color='gray',linewidth=0.5)
+            # indicating where the stimulus occurred
+            for intensity in [1,2,4,8,16,32,50,75]:
+                ax[0].plot(stimTraceX,stimTrace*intensity,color='blue',linewidth=0.5)
+
+
+            # labeling and formatting plot
+            ax[0].set_xlim(xlims)
+            ax[1].set_xlim(xlims)
+            ax[2].set_xlim(xlims)
+            ax[0].set_xticks([])
+            ax[0].set_yticks([])
+            for spine in ax[0].spines:
+                ax[0].spines[spine].set_visible(False)
+            ax[1].set_ylim([-1,j+1])
+            ax[1].set_xticks([])
+            ax[2].set_xlabel('Time (s)')
+            ax[2].set_ylabel('Rate (Hz)')
+            ax[1].set_ylabel('Trial')
+            ax[0].set_title('Unit {0:d}'.format(unit),pad=8)
+
+            plt.subplots_adjust(left=0.15,bottom=0.15,top=0.9,hspace=0.05,right=0.95)
+            if save == True:
+                plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,bbox_inches='tight',transparent=True)
+            elif save == 'png':
+                plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=300,bbox_inches='tight',transparent=True)
+            elif save == 'pdf':
+                plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),bbox_inches='tight',transparent=True)
+            plt.show()
+            plt.close()
+
+def calculateSpikesPerBump(sineFile,samples,spikes=None,sampleRate=20000,window=[0.5,0.8]):
+    """
+    Calculate the number of spikes fired per cycle for each unit.
+    Inputs:
+    sineFile - str, matlab file generated when acquiring data
+    samples - list, each component is an array containing the samples at which units fired spikes
+    spikes - None or list, if list, each component is an array containing the unit to which the spike belongs.
+        If none, all spikes are assumed to be of the same unit (unit 1)
+    sampleRate - int, sample rate on intan (or other acqusition device)
+
+    Outputs:
+    outDict - dict containing the following keys:
+        unit - dict for each unit containing the following keys
+            frequency - dict for each frequency containing the following keys:
+                'amplitudes' - ndarray, amplitudes sorted low to high of the sine waves
+                'spikesPerCycle' - ndarray, # of spikes corresponding to the unit for each sine stimulus (corresponds to amplitudes)
+        'evokedSpikes' - ndarray MxN, M = units, N = sweep
+        'units' - ndarray, units included in output
+        'baselines' - ndarray, baseline for each unit
+    """
+    outDict = {}
+    sineAmplitudes, frequencies, baseline, Fs = importSineData(sineFile)
+    baseline = window[0] * sampleRate ### overwriting for sineBump stimuli
+    if spikes == None:
+        spikes = [np.ones(len(n),dtype=int) for n in samples] ## generating units (unit 1)
+    if (len(sineAmplitudes) != len(samples)) or (len(sineAmplitudes) != len(spikes)):
+        print('Number of trials does not match stim file.')
+        return
+    uniqueFrequencies = np.unique(frequencies)
+    # calculating baseline spike rate
+    units = np.unique(np.concatenate(spikes))
+    tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.02,samples,spikes,units=units,bs_window=[0,baseline/Fs],sample_rate=sampleRate)
+    baselines = np.mean(tempPSTH['psths'][:int(baseline/Fs/0.02),:],axis=0)
+
+    evokedSpikes = np.zeros((len(units),len(samples))) #
+    for i, unit in enumerate(units):
+        for j, (sample, spike) in enumerate(zip(samples,spikes)):
+            evokedSpikes[i,j] = np.sum(spike[(sample > baseline * (sampleRate/Fs)) & (sample < window[1] * sampleRate * (sampleRate/Fs))] == unit) / (window[1] - window[0]) - baselines[i]
+        outDict[unit] = {}
+        for frequency in uniqueFrequencies:
+            ind = np.where(frequencies == frequency)[0]
+            amplitudes = sineAmplitudes[ind]
+            sortInd = np.argsort(amplitudes)
+            overallInd = ind[sortInd] ## this index all sweeps == frequency, sorted by amplitude of sine wave
+            sortedAmplitudes = amplitudes[sortInd]
+            outDict[unit][frequency] = {}
+            outDict[unit][frequency]['amplitudes'] = sortedAmplitudes
+            outDict[unit][frequency]['spikesPerBump'] = np.reshape(evokedSpikes[i,overallInd]/(((baseline*3-baseline)/Fs)*frequency),-1)
+    outDict['evokedSpikes'] = evokedSpikes
+    outDict['units'] = units
+    outDict['baselines'] = baselines
+    return outDict
