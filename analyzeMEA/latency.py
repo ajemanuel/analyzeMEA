@@ -60,7 +60,7 @@ def calculateLatencyParameters(eventSamples, baselinePeriod, samples, spikes, un
         elif len(baselinePeriod[0]) == 2: ## if multiple baseline epochs
             temp2=[]
             for epoch in baselinePeriod:
-                temp = np.random.rand(len(eventSamples)/len(baselinePeriod)) # matching # of events for baseline and stimulus-evoked samples
+                temp = np.random.rand(np.int64(len(eventSamples)/len(baselinePeriod))) # matching # of events for baseline and stimulus-evoked samples
                 temp *= (epoch[1] - epoch[0]) # scaling to epoch
                 temp += epoch[0] # adjusting start
                 temp = np.int32(temp) # integers that correspond to samples
