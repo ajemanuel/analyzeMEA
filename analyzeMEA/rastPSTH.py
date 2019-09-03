@@ -101,11 +101,15 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
         psth_dict['psths'] = psths/len(samples) # in units of spikes/trial in each bin
 
     psths_bs = np.copy(np.transpose(psth_dict['psths']))
+    psths_z = np.copy(np.transpose(psth_dict['psths']))
     for i,psth in enumerate(psths_bs):
         tempMean = np.mean(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
+        tempStDev = np.std(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
         #print(tempMean)
         psths_bs[i] = psth - tempMean
+        psths_z[i] = (psth - tempMean)/tempStDev
     psth_dict['psths_bs'] = np.transpose(psths_bs)
+    psth_dict['psths_z'] = np.transpose(psths_z)
     psth_dict['bin_size'] = bin_size # in s
     psth_dict['sample_rate'] = sample_rate # in Hz
     psth_dict['xaxis'] = np.arange(0,maxBin,bin_size)
