@@ -28,13 +28,14 @@ def extractLaserPositions(matFile, voltageToDistance=3.843750000e+03):
         positions.append((float(x[sample]*voltageToDistance), float(y[sample]*voltageToDistance)))
     return positions
 
-def extractLaserPSTH(matFile, samples, spikes, duration=None, sampleRate=20000, includeLaserList=True):
+def extractLaserPSTH(matFile, samples, spikes, baseline = 0.01, duration=None, sampleRate=20000, includeLaserList=True):
     """
     Make lists of samples and spikes at each laser pulse
     inputs:
         matFile - str, path to file made when stimulating
         samples - sequence of spike times
         spikes - sequence of cluster identities for each spike
+        baseline - period to include prior to laser onset (in s), default is 10 ms
         duration - period to include after each spike (in s), default is ISI
         includeLaserList - boolean, use False to not calculate laser list
     outputs:
@@ -59,6 +60,7 @@ def extractLaserPSTH(matFile, samples, spikes, duration=None, sampleRate=20000, 
 
     for start in laserOnsets:
         adjStart = int(start * (sampleRate/temp['Fs'])) ## adjusting the start in case the sample rates differ between nidaq and intan
+        adjStart = adjStart - baseline*sampleRate ## adjusting the start to includea pre-laser baseline period
         end = int(adjStart + sampleRate * duration)
         samplesList.append(samples[(samples > adjStart) & (samples < end)] - adjStart)
         spikesList.append(spikes[(samples > adjStart) & (samples < end)])
