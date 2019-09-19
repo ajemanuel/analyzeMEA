@@ -60,15 +60,15 @@ def extractLaserPSTH(matFile, samples, spikes, baseline = 0.01, duration=None, s
 
     for start in laserOnsets:
         adjStart = int(start * (sampleRate/temp['Fs'])) ## adjusting the start in case the sample rates differ between nidaq and intan
-        adjStart = adjStart - baseline*sampleRate ## adjusting the start to includea pre-laser baseline period
+        adjStart = int(adjStart - baseline*sampleRate) ## adjusting the start to includea pre-laser baseline period
         end = int(adjStart + sampleRate * duration)
         samplesList.append(samples[(samples > adjStart) & (samples < end)] - adjStart)
         spikesList.append(spikes[(samples > adjStart) & (samples < end)])
         if includeLaserList:
             try:
-                laserList.append(temp['laser'][start:int(start+temp['Fs']*duration)])
+                laserList.append(temp['laser'][adjStart:int(adjStart*(temp['Fs']/sampleRate)+temp['Fs']*duration)])
             except(KeyError):
-                laserList.append(temp['lz1'][start:int(start+temp['Fs']*duration)])
+                laserList.append(temp['lz1'][adjStart:int(adjStart*(temp['Fs']/sampleRate)+temp['Fs']*duration)])
 
     if includeLaserList:
         return samplesList, spikesList, laserList
@@ -161,7 +161,7 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
         a0 = plt.axes()
         absMax = np.amax(np.absolute(output[:,:,unit]))
         sc = a0.imshow(output[:,:,unit],extent=[ymin/1000, ymax/1000, xmin/1000, xmax/1000],origin='lower',
-                        clim=[-absMax,absMax],cmap='bwr')
+                        clim=[-absMax,absMax],cmap='bwr',interpolation='none')
         a0.set_title('Unit {0}'.format(units[unit]))
         a0.set_xlabel('mm')
         a0.set_ylabel('mm')
