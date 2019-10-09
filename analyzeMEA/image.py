@@ -2,9 +2,7 @@ from skimage import filters
 import numpy as np
 from multiprocessing import Pool
 import pims
-from numba import jit
 
-@jit(parallel=True)
 def createDiffLine(video, cropx1, cropx2, cropy1, cropy2):
     """
     Binarizes video and returns a frame to frame difference trace.
@@ -22,14 +20,26 @@ def createDiffLine(video, cropx1, cropx2, cropy1, cropy2):
     """
     threshold = filters.threshold_otsu(video[0][cropx1:cropx2,cropy1:cropy2])
     numFrames = len(video)
-    diffLine = np.zeros(numFrames)
-    for i in range(numFrames-1):
-        binary1 = video[i+1][cropx1:cropx2,cropy1:cropy2] > threshold
-        binary2 = video[i][cropx1:cropx2,cropy1:cropy2] > threshold
-        diffLine[i] = np.sum(binary1 != binary2)
+    binarized = np.zeros((numFrames,video.frame_shape[0],video.frame_shape[1]))
+
+    for i, frame in enumerate(video):
+        binarized[i,:,:] = frame > threshold
         if divmod(i,100)[1] == 0:
             print('on frame {0} of {1}'.format(i,numFrames))
-    diffLine[-1] = diffLine[-2] ## duplicate the last value to make the array the right size
+    diffLine = np.zeros(numFrames)
+    diffLine = np.sum(np.sum(binarized[1:,cropx1:cropx2,cropy1:cropy2] != binarized[:-1,cropx1:cropx2,cropy1:cropy2],axis=1),axis=1)
+    diffLine[-1] = diffLine[-2]
+
+
+    # for i in range(numFrames-1):
+    #     binary1 = video[i+1][cropx1:cropx2,cropy1:cropy2] > threshold
+    #     binary2 = video[i][cropx1:cropx2,cropy1:cropy2] > threshold
+    #     diffLine[i] = np.sum(binary1 != binary2)
+    #     if divmod(i,100)[1] == 0:
+    #         print('on frame {0} of {1}'.format(i,numFrames))
+    # diffLine[-1] = diffLine[-2] ## duplicate the last value to make the array the right size
+    # print('Took {0:0.3f} s'.format(time.time()-b))
+
     return diffLine
 
 
@@ -37,7 +47,6 @@ def createDiffLine(video, cropx1, cropx2, cropy1, cropy2):
 def cropImage(image, cropx1, cropx2, cropy1, cropy2):
     return image[cropx1:cropx2,cropy1:cropy2]
 
-@jit()
 def calculateDifference(images): ## defining this as a nested function so that the threshold is defined based on the video
     threshold = filters.threshold_otsu(images[0])
     binary1 = images[0] > threshold
