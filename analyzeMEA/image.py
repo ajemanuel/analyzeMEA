@@ -2,6 +2,7 @@ from skimage import filters
 import numpy as np
 from multiprocessing import Pool
 import pims
+import cv2
 
 def createDiffLine(video, cropx1, cropx2, cropy1, cropy2):
     """
@@ -26,9 +27,8 @@ def createDiffLine(video, cropx1, cropx2, cropy1, cropy2):
         binarized[i,:,:] = frame > threshold
         if divmod(i,100)[1] == 0:
             print('on frame {0} of {1}'.format(i,numFrames))
-    diffLine = np.zeros(numFrames)
     diffLine = np.sum(np.sum(binarized[1:,cropx1:cropx2,cropy1:cropy2] != binarized[:-1,cropx1:cropx2,cropy1:cropy2],axis=1),axis=1)
-    diffLine[-1] = diffLine[-2]
+    diffLine = np.insert(diffLine,-1,diffLine[-1])
 
 
     # for i in range(numFrames-1):
@@ -42,7 +42,35 @@ def createDiffLine(video, cropx1, cropx2, cropy1, cropy2):
 
     return diffLine
 
+def createDiffLineCV(video, cropx1, cropx2, cropy1, cropy2):
+    """
+    Binarizes video and returns a frame to frame difference trace.
+    Inputs:
+    video - list of images
+    cropx1 - int, crop pixel starting for first dimension
+    cropx2 - int, crop pixel ending for first dimension
+    cropy1 - int, crop pixel starting for second dimension
+    cropy2 - int, crop pixel ending for second dimension
 
+    Output:
+    diffLine, ndarray; frame to frame differences
+
+    as of 4/24/19, this code takes about 152 seconds for a 9050 frame video
+    """
+    initialFrame = cv2.imread(video[0],cv2.IMREAD_GRAYSCALE)[cropx1:cropx2,cropy1:cropy2]
+    threshold = filters.threshold_otsu(initialFrame)
+    numFrames = len(video)
+    diffLine = np.zeros(numFrames)
+    for i in np.arange(1,len(video)):
+        temp0 = cv2.imread(video[i-1],cv2.IMREAD_GRAYSCALE)[cropx1:cropx2,cropy1:cropy2]
+        temp1 = cv2.imread(video[i],cv2.IMREAD_GRAYSCALE)[cropx1:cropx2,cropy1:cropy2]
+        temp0_bin = temp0 > threshold
+        temp1_bin = temp1 > threshold
+        diffLine[i-1] = np.sum(temp0_bin != temp1_bin)
+        if divmod(i,100)[1] == 0:
+            print('on frame {0} of {1}'.format(i,numFrames))
+    diffLine[-1] = diffLine[-2]
+    return diffLine
 
 def cropImage(image, cropx1, cropx2, cropy1, cropy2):
     return image[cropx1:cropx2,cropy1:cropy2]
