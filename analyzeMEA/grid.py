@@ -128,11 +128,7 @@ def plotGridPSTHs(filename, bs_window, samples, spikes,
     outDict = gridIndent # save all variables from the grid file
     numX = int((gridIndent['max_x'] - gridIndent['min_x'])/gridIndent['grid_spacing'])+1
     numY = int((gridIndent['max_y'] - gridIndent['min_y'])/gridIndent['grid_spacing'])+1
-    ind = []
-    for position in gridIndent['grid_positions']:
-        for i, position2 in enumerate(gridIndent['grid_positions_rand']):
-            if np.all(position == position2):
-                ind.append(i) ## ind is a an index that can reorder the position responses for making a matrix
+    ind = calculatePositionIndex(filename) # ind is a an index that can reorder the position responses for making a matrix
     PSTHs = {}
     if units is None:
         units = np.unique(np.concatenate(spikes))
@@ -147,7 +143,7 @@ def plotGridPSTHs(filename, bs_window, samples, spikes,
         for i, position in enumerate(np.transpose(gridPosActual)):
             if duration == 1:
                 ax.plot(np.array([-0.25,0.25])*xscale+position[0], np.array([0,0])+position[1],color='gray',linewidth=2)
-            tempPSTH = np.sum(PSTHs[i]['psths'],axis=1)
+            tempPSTH = np.sum(PSTHs[i]['psths_bs'],axis=1)
             #tempPSTH = tempPSTH - np.mean(tempPSTH[:int(0.25/binSize)])
             ax.plot((PSTHs[i]['xaxis']-duration/2)*xscale+position[0],tempPSTH*yscale+position[1],color='k',linewidth=1)
         scaleBarX = ax.plot(np.max(gridPosActual[0])+0.6+np.array([0,1])*0.25,np.array((np.mean(gridPosActual[1]),np.mean(gridPosActual[1]))),color='k',linewidth=4,scalex=False,scaley=False)
@@ -468,3 +464,58 @@ def plotPositionResponses(positionResponses, gridPosActual, force=0, size=300, s
             plt.savefig('positionResponse_unit{0}_{1}mN{2}.png'.format(unit, force, saveString),transparent=True)
     plt.show()
     plt.close()
+
+def calculatePositionIndex(gridFile):
+    """
+    returns the index needed to reorder positions so that they're suitable for a matrix plot
+
+    Input:
+    gridFile - str; .mat filename produced by indentOnGrid
+    Output:
+    index - np.array, len = numLocations
+    """
+    gridIndent = scipy.io.loadmat(gridFile)
+    index = []
+    for position in gridIndent['grid_positions']:
+        for i, position2 in enumerate(gridIndent['grid_positions_rand']):
+            if np.all(position == position2):
+                index.append(i)
+    return  np.int32(index)
+
+def generateSingleSweepPSTH(gridFile, samples, spikes, numSteps=8, numRepeats=2, units=None, bin_size=0.01):
+    """
+    generate a single-sweep PSTH for grid analysis
+    inputs:
+        gridFile - str; .mat filename produced by indentOnGrid
+        samples - list, spike times for each step
+        spikes - list, spike unit ID for each step
+        numSteps - int, number of steps used to stimulate at each location
+        numRepeats - int, number of times the entire grid is repeated
+        units - None or np.array, units to include in PSTH output (usually use np.unique(goodSpikes)[spikeDict['depthIndices']]))
+        bin_size - float, bin size of PSTH in s
+    outputs:
+        dictionary, with keys:
+            PSTH - np.array - M locations x N trials x O bins x P units
+            bin_size - float, bin size of PSTH in s
+            locations - np.array - M locations x N coordinates for locations included in PSTH
+            units - np.array - unit identities
+    """
+    if units is None:
+        units = np.unique(np.concatenate(spikes))
+    outDict = {}
+    outDict['units'] = units
+    outDict['bin_size'] = bin_size
+    gridIndent = scipy.io.loadmat(gridFile)
+    outDict['locations'] = gridIndent['grid_positions']
+    ind = calculatePositionIndex(gridFile)
+    tempPSTH = analyzeMEA.rastPSTH.singleSweepPSTH(bin_size,samples,spikes,units=units,rate=False)
+    numUnits = len(units)
+    PSTH = np.zeros([len(ind), numSteps*numRepeats, tempPSTH['psths'].shape[0],numUnits])
+    for stimLocation in ind:
+        for unit in range(numUnits):
+            for repeat in range(numRepeats):
+                initialStep = repeat * len(ind) * numSteps + numSteps * stimLocation
+                endStep = initialStep + numSteps
+                PSTH[stimLocation,int(repeat*numSteps):int((repeat+1)*numSteps),:,unit] = np.transpose(tempPSTH['psths'][:,initialStep:endStep,unit])
+    outDict['PSTH'] = np.int16(PSTH)
+    return outDict
