@@ -62,8 +62,12 @@ def importJRCLUST(filepath, annotation='single', depth=250):
         waveform = outDict['tmrWav_raw_clu'][i,outDict['viSite_clu'][i],:] ## extracts the waveform from the best spike
         if S0['S0'].dimm_raw[0] == 81:
             spikeTroughPeak.append(np.where(waveform[22:] == np.max(waveform[22:]))[0][0]) # trough occurs at sample 22 for raw waveforms with 81 samples
-        else:
+        elif S0['S0'].dimm_raw[0] == 41:
             spikeTroughPeak.append(np.where(waveform[12:] == np.max(waveform[12:]))[0][0]) # for raw waveforms with 41 samples, trough occurs at sample 12, finding location of maximum post trough
+        else:
+            print('Raw waveform dimensions do not match those hard-coded into this function...')
+            ## perhaps this is generalizable: np.int(np.ceil(81/4)+1)
+            # need to more test cases to be sure
     spikeTroughPeak = np.array(spikeTroughPeak)/outDict['sampleRate'] # convert to s
     outDict['spikeTroughPeak'] = spikeTroughPeak
 
