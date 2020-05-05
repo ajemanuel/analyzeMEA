@@ -213,7 +213,7 @@ def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000)
     f, ax = plt.subplots(2,1,figsize=[2.5,3],gridspec_kw={'height_ratios':[1,5]})
     for i, (start,end) in enumerate(zip(phaseStarts, phaseEnds)):
         tempTimes = spikeTimes[(spikeTimes > start) & (spikeTimes < end)]  - start
-        ax[1].plot(tempTimes,np.ones(len(tempTimes))*i,'.',mew=0.5,markersize=1,color='gray')
+        ax[1].plot(tempTimes,np.ones(len(tempTimes))*i,'.',mew=0.5,markersize=3,color='gray')
     sineWaveX = np.arange(0,1/frequency,1/frequency/100)
     sineWaveY = np.sin((np.pi*2*frequency) * sineWaveX - np.pi/2)
     ax[0].plot(sineWaveX,sineWaveY)
@@ -221,6 +221,9 @@ def plotPhaseRaster(spikeSamples,frequency,stimTimes=[0.5,1.5],sampleRate=20000)
     ax[1].set_xlim(xlims)
     ax[0].set_xticks([])
     ax[0].set_yticks([])
+    ax[1].set_ylabel('Trial')
+    ax[1].set_xlabel('Time (s)')
+    ax[0].set_title('{} Hz'.format(frequency))
 
 
 def plotSineBumpRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,duration=3,save=False, saveString = ''):
