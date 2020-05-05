@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 def calculateLatencyParameters(eventSamples, baselinePeriod, samples, spikes, units=None, sampleRate=20000, numShuffles=100,
                                 JSwindow=[0,10,0.25],resetRandSeed=True):
@@ -214,7 +215,7 @@ def calculateLatencyParametersSweeps(eventSample, samples_sweeps, spikes_sweeps,
 
 
 
-def determineThresholdCrossings(latencyDict, alpha=0.001):
+def determineThresholdCrossings(latencyDict, alpha=0.05):
     """
     Calculate threshold crossings for all units in latencyDict
 
@@ -231,7 +232,7 @@ def determineThresholdCrossings(latencyDict, alpha=0.001):
     latenciesBelowThreshold = []
 
     for unitInd, unit in enumerate(latencyDict['units']):
-        temp = determineThresholdCrossing(latencyDict['latencies'][unitInd,:],latencyDict['latenciesBaseline'][unitInd,:,:], alpha=alpha)
+        temp = determineThresholdCrossing_interp(latencyDict['latencies'][unitInd,:],latencyDict['latenciesBaseline'][unitInd,:,:], alpha=alpha)
         print('Unit {0}, {1:0.3f}; {2:0.3f}'.format(unit,temp[0],temp[1]))
         latenciesAboveThreshold.append(temp[0])
         latenciesBelowThreshold.append(temp[1])
@@ -240,6 +241,51 @@ def determineThresholdCrossings(latencyDict, alpha=0.001):
     latenciesBelowThreshold = np.array(latenciesBelowThreshold)
 
     return latenciesAboveThreshold, latenciesBelowThreshold
+
+def determineThresholdCrossing_interp(latencies, baselineLatencies, alpha=0.05,xParams=[0,0.05,1/20000]):
+    """
+    Determines when the latencies cross the significance level designated by alpha -- using interpolation for speed.
+    Confidence intervales of the actual latency distribution are determined Clopper Pearson binomial proportion at each point
+
+    Inputs:
+        latencies - np.array, actual latencies
+        baselineLatencies - np.array, shuffled latencies (if multidimensional, will be reshaped)
+
+    Outputs:
+        latencyAboveThreshold - float, latency when the lower confidence interval is crossed (e.g., larger fraction than expected by baseline distribution)
+        latencyBelowThreshold - float, latency when the upper confidence interval is crossed (e.g., smaller fraction than expected by baseline distribution)
+            either output will be -1 when the given interval is not crossed
+
+    Written by AE 5/4/2020
+    """
+    latencies = np.sort(latencies)
+    baselineLatencies = np.sort(np.reshape(baselineLatencies,-1)) ## making sure the array is sorted and in one dimension
+    cumLatencies = np.cumsum(latencies)/np.nansum(latencies)
+    numSamples = len(latencies)
+
+    upper = np.zeros(numSamples)
+    lower = np.zeros(numSamples)
+    for i, latenc in enumerate(cumLatencies):
+        k = latenc * numSamples
+        lo, hi = clopper_pearson(k,numSamples,alpha=alpha)
+        lower[i] = lo
+        upper[i] = hi
+
+    interpLat = scipy.interpolate.interp1d(latencies,cumLatencies,bounds_error=False)
+    interpLower = scipy.interpolate.interp1d(latencies,lower,bounds_error=False)
+    interpUpper = scipy.interpolate.interp1d(latencies,upper,bounds_error=False)
+    interpBase = scipy.interpolate.interp1d(baselineLatencies,np.cumsum(baselineLatencies)/np.nansum(baselineLatencies),bounds_error=False)
+    xaxis = np.arange(*xParams)
+
+    try:
+        latencyAboveThreshold = xaxis[np.where(interpLower(xaxis) > interpBase(xaxis))[0][0]]
+    except IndexError:
+        latencyAboveThreshold = -1
+    try:
+        latencyBelowThreshold = xaxis[np.where(interpUpper(xaxis) < interpBase(xaxis))[0][0]]
+    except IndexError:
+        latencyBelowThreshold = -1
+    return latencyAboveThreshold, latencyBelowThreshold
 
 
 def determineThresholdCrossing(latencies, baselineLatencies, alpha=0.001):
@@ -303,3 +349,14 @@ def determineThresholdCrossing(latencies, baselineLatencies, alpha=0.001):
 
 def epsilon(n, alpha=0.01):
     return np.sqrt(1. / (2. * n) * np.log(2. / alpha))
+
+import scipy.stats
+def clopper_pearson(k,n,alpha=0.05):
+    """
+    http://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+    alpha confidence intervals for a binomial distribution of k expected successes on n trials
+    Clopper Pearson intervals are a conservative estimate.
+    """
+    lo = scipy.stats.beta.ppf(alpha/2, k, n-k+1)
+    hi = scipy.stats.beta.ppf(1 - alpha/2, k+1, n-k)
+    return lo, hi
