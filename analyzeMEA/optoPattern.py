@@ -51,7 +51,7 @@ def extractLaserPSTH(matFile, samples, spikes, baseline = 0.01, duration=None, s
     except(KeyError):
         laserOnsets = np.where(temp['lz1'][1:] > temp['lz1'][:-1])[0] ### old version of stim file
     if duration is None:
-        duration = temp['ISI']
+        duration = temp['ISI'] + baseline
 
     samplesList = []
     spikesList = []
@@ -110,7 +110,7 @@ def extractLaserPSTH_intan(laser_trigger, samples, spikes, duration=0.1, sampleR
         return samplesList, spikesList
 
 
-def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_window, units, save=False, saveString='', smoothBin=0, voltageToDistance = 3.843750000e+03):
+def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_window, units, baseline=10, save=False, saveString='', smoothBin=0, voltageToDistance = 3.843750000e+03):
     """
     Inputs:
     matFile - string, path to file generated with randSquareOffset stimulus
@@ -120,6 +120,7 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
     window - sequence, len 2 - window of analysis (in ms)
     bs_window - sequence, len 2 - spikes in this window subtracted from those in window ( in ms)
     units - sequence - units to include
+    baseline - int or float, size of baseline period for laser PSTH (in ms; default = 10)
     save - boolean, whether to save plot or not
     saveString - string, string appended to filename when saving
     smoothBin - float, size of gaussian filter for smoothing (in bin units), default=0, no smoothing
@@ -127,8 +128,8 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
     Output:
     ouput - ndarray, optical receptive fields with shape (numBins, numBins, numUnits)
     """
-
-    samplesList, spikesList = extractLaserPSTH(matFile, samples, spikes, includeLaserList=False)
+    baseline = baseline/1000 ## converting to s
+    samplesList, spikesList = extractLaserPSTH(matFile, samples, spikes, baseline=baseline, includeLaserList=False)
     parameters = scipy.io.loadmat(matFile, variable_names=['edgeLength','offsetX','offsetY','ISI'])
     laserPositions = np.transpose(extractLaserPositions(matFile,voltageToDistance=voltageToDistance))
     binSizeMicron = binSize * 1000
@@ -151,7 +152,7 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
                              (laserPositions[1] < ymin + binSizeMicron*(binxy[1]+1)))[0]
         if len(tempPositions > 0):
             tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.001,[samplesList[a] for a in tempPositions],[spikesList[a] for a in tempPositions],
-                units=units, duration=float(parameters['ISI']), rate=False)
+                units=units, duration=float(parameters['ISI']+baseline), rate=False)
             for unit in range(numUnits):
                 output[binxy[0],binxy[1],unit] = np.mean(tempPSTH['psths'][window[0]:window[1],unit]) - np.mean(tempPSTH['psths'][bs_window[0]:bs_window[1],unit])
     for unit in range(numUnits):
