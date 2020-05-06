@@ -263,13 +263,7 @@ def determineThresholdCrossing_interp(latencies, baselineLatencies, alpha=0.05,x
     cumLatencies = np.cumsum(latencies)/np.nansum(latencies)
     numSamples = len(latencies)
 
-    upper = np.zeros(numSamples)
-    lower = np.zeros(numSamples)
-    for i, latenc in enumerate(cumLatencies):
-        k = latenc * numSamples
-        lo, hi = clopper_pearson(k,numSamples,alpha=alpha)
-        lower[i] = lo
-        upper[i] = hi
+    lower, upper = clopper_pearson(cumLatencies*numSamples,numSamples,alpha=alpha)
 
     interpLat = scipy.interpolate.interp1d(latencies,cumLatencies,bounds_error=False)
     interpLower = scipy.interpolate.interp1d(latencies,lower,bounds_error=False)
