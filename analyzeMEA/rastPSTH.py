@@ -107,7 +107,7 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
         tempStDev = np.std(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
         #print(tempMean)
         psths_bs[i] = psth - tempMean
-        psths_z[i] = (psth - tempMean)/tempStDev
+        psths_z[i] = psths_bs[i]/tempStDev
     psth_dict['psths_bs'] = np.transpose(psths_bs)
     psth_dict['psths_z'] = np.transpose(psths_z)
     psth_dict['bin_size'] = bin_size # in s
