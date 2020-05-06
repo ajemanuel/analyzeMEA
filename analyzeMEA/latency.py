@@ -294,8 +294,8 @@ def determineThresholdCrossing(latencies, baselineLatencies, alpha=0.001):
     Confidence intervales of the baseline latency distribution are determined by applying the Dvoretzky-Kiefer-Wolfowitz inequality.
 
     Inputs:
-        latencies - np.array, actual latencies
-        baselineLatencies - np.array, shuffled latencies (if multidimensional, will be reshaped)
+        latencies - np.array, actual latencies (in s)
+        baselineLatencies - np.array, shuffled latencies (if multidimensional, will be reshaped) (in s)
 
     Outputs:
         latencyAboveThreshold - float, latency when the lower confidence interval is crossed (e.g., larger fraction than expected by baseline distribution)
