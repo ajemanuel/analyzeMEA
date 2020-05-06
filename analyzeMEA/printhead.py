@@ -1,3 +1,7 @@
+import scipy.io
+import numpy as np
+import analyzeMEA.rastPSTH
+
 def randSingleAnalysis(matFile, samples, spikes, units,
                         window=[0,25], psthSize = 1000, psthBin = 1, sampleRate=20000,verbose=True):
     """
@@ -53,7 +57,7 @@ def randSingleAnalysis(matFile, samples, spikes, units,
             tempEnd = int(start + psthSize_samples/2)
             temp_samples.append(samples[(samples > tempStart) & (samples < tempEnd)] - tempStart)
             temp_spikes.append(spikes[(samples > tempStart) & (samples < tempEnd)])
-        psth = makeSweepPSTH(psthBin_seconds, temp_samples, temp_spikes, units=units,duration = psthSize/1000, bs_window=[0,psthSize/1000]) # taking the mean of the overall mean of the psth window for baseline subtraction
+        psth = analyzeMEA.rastPSTH.makeSweepPSTH(psthBin_seconds, temp_samples, temp_spikes, units=units,duration = psthSize/1000, bs_window=[0,psthSize/1000]) # taking the mean of the overall mean of the psth window for baseline subtraction
         for j in range(len(units)):
             startBin = int(psthSize/psthBin/2)
             positionResponse[i, j] = np.nanmean(psth['psths_bs'][startBin + window_bins[0]:startBin + window_bins[1],j])
