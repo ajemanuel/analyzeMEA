@@ -27,11 +27,14 @@ def plotStimRasters(stimulus, samples, spikes, unit, ltime, rtime, save=False, s
     f, (a0, a1) = plt.subplots(2,1,gridspec_kw={'height_ratios':heightRatio},figsize=fig_size)
     xaxis = np.arange(ltime-baseline,rtime-baseline,1/sample_rate)
     for sweep in stimulus:
-        a0.plot(xaxis,sweep[int(sample_rate*ltime):int(sample_rate*rtime)],linewidth=.5,color='gray') # add +5*i to the y axis to get separate traces
+        a0.plot(xaxis,sweep[int(sample_rate*ltime):int(sample_rate*rtime)],linewidth=.5,color='r') # add +5*i to the y axis to get separate traces
     topxlim = a0.get_xlim()
     a0.set_title('Unit '+str(unit))
     a0.set_xticks([])
     a0.set_ylabel(stimLabel)
+    a0.spines['top'].set_visible(False)
+    a0.spines['right'].set_visible(False)
+    a0.spines['bottom'].set_visible(False)
 
     # Plot Rasters
     for sweep in range(len(samples)):
@@ -43,11 +46,12 @@ def plotStimRasters(stimulus, samples, spikes, unit, ltime, rtime, save=False, s
     a1.set_xlim(topxlim)
     a1.set_ylim(-1,len(samples))
     a1.set_xlabel('Time (s)')
-    a1.set_ylabel('Step #')
-    plt.tight_layout()
-
+    a1.set_ylabel('Trial')
+    a1.spines['top'].set_visible(False)
+    a1.spines['right'].set_visible(False)
+    a1.invert_yaxis()
     if save:
-        plt.savefig('RasterUnit'+str(unit)+saveString+'.png',dpi=300)
+        plt.savefig('RasterUnit'+str(unit)+saveString+'.png',dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()
 
