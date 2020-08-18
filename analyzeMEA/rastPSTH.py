@@ -183,6 +183,7 @@ def singleSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, dur
         psths_z[i] = (psth - tempMean)/tempStDev
     psth_dict['psths_mean'] = psths_mean
     psth_dict['psths_sd'] = psths_sd
+    psth_dict['psths_sem'] = psths_sd/np.sqrt(psths.shape[1])
     psth_dict['psths_bs'] = np.transpose(psths_bs)
     psth_dict['psths_z'] = np.transpose(psths_z)
     psth_dict['bin_size'] = bin_size # in s
