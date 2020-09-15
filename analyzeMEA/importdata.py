@@ -52,7 +52,9 @@ def importJRCLUST(filepath, annotation='single', depth=250):
     outDict['depthIndices'] = np.argsort(S0['S0'].S_clu.vrPosY_clu[spikeAnnotations == annotation]) ## to get an index to use for sorting by depth
     outDict['tmrWav_raw_clu'] = np.transpose(S0['S0'].S_clu.tmrWav_raw_clu[:,:,spikeAnnotations == annotation])
     outDict['tmrWav_spk_clu'] = np.transpose(S0['S0'].S_clu.tmrWav_spk_clu[:,:,spikeAnnotations == annotation])
-
+    outDict['Lratio'] = S0['S0'].S_clu.vrLRatio_clu[spikeAnnotations == annotation]
+    outDict['IsoDist'] = S0['S0'].S_clu.vrIsoDist_clu[spikeAnnotations == annotation]
+    outDict['ISIratio'] = S0['S0'].S_clu.vrIsiRatio_clu[spikeAnnotations == annotation]
     outDict['viSite_clu'] = S0['S0'].S_clu.viSite_clu[spikeAnnotations == annotation] - 1 # subtract 1 for python indexing
 
 
