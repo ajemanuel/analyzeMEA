@@ -42,7 +42,8 @@ def importJRCLUST(filepath, annotation='single', depth=250):
     goodSamples = goodSamples[np.isin(goodSpikes,annotatedUnits)]
     goodSpikes = goodSpikes[np.isin(goodSpikes,annotatedUnits)]
 
-
+    outDict['spikeSites'] = S0['S0'].viSite_spk ## list of site identity for all spikes
+    outDict['allSamples'] = S0['S0'].viTime_spk ## list of samples for all spikes
     outDict['units'] = np.unique(goodSpikes)
     outDict['sampleRate'] = S0['S0'].P.sRateHz
     outDict['goodSamples'] = goodSamples
