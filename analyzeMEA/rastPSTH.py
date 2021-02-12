@@ -25,10 +25,14 @@ def plotStimRasters(stimulus, samples, spikes, unit, ltime, rtime, save=False, s
 
     # Plot stimulus waveform
     f, (a0, a1) = plt.subplots(2,1,gridspec_kw={'height_ratios':heightRatio},figsize=fig_size)
-    xaxis = np.arange(ltime-baseline,rtime-baseline,1/sample_rate)
-    for sweep in stimulus:
-        a0.plot(xaxis,sweep[int(sample_rate*ltime):int(sample_rate*rtime)],linewidth=.5,color='r') # add +5*i to the y axis to get separate traces
-    topxlim = a0.get_xlim()
+
+    if ltime >= 0:
+        xaxis = np.arange(ltime-baseline,rtime-baseline,1/sample_rate)
+        for sweep in stimulus:
+            a0.plot(xaxis,sweep[int(sample_rate*ltime):int(sample_rate*rtime)],linewidth=.5,color='r') # add +5*i to the y axis to get separate traces
+
+    xlim = [ltime,rtime]
+    a0.set_xlim(xlim)
     a0.set_title('Unit '+str(unit))
     a0.set_xticks([])
     a0.set_ylabel(stimLabel)
@@ -43,7 +47,7 @@ def plotStimRasters(stimulus, samples, spikes, unit, ltime, rtime, save=False, s
         sweepspikes = sweepspikes[(sweepsamples > ltime*sample_rate) & (sweepsamples < rtime*sample_rate)]
         sweepsamples = sweepsamples[(sweepsamples > ltime*sample_rate) & (sweepsamples < rtime*sample_rate)]
         a1.plot(sweepsamples/sample_rate-baseline,(sweepspikes+sweep-unit),'|',color='k',markersize=markerSize,mew=.5)
-    a1.set_xlim(topxlim)
+    a1.set_xlim(xlim)
     a1.set_ylim(-1,len(samples))
     a1.set_xlabel('Time (s)')
     a1.set_ylabel('Trial')
@@ -81,18 +85,28 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
 
     if duration is None:
         maxBin = max(np.concatenate(samples))/sample_rate
+        maxBin = np.ceil(maxBin/bin_size)*bin_size
+        minTime = min(np.concatenate(samples))/sample_rate
+        minBin = np.floor(minTime/bin_size)*bin_size
     else:
-        maxBin = duration
+        minTime = min(np.concatenate(samples))/sample_rate
+        minBin = np.floor(minTime/bin_size)*bin_size
+        maxBin = duration - minBin
+
+    if minBin < 0:
+        modSamples = [np.array(n)-minTime*sample_rate for n in samples]
+    else:
+        modSamples = samples
 
     if units is None:  # if user does not specify which units to use (usually done with np.unique(goodSpikes))
         units = np.unique(np.hstack(spikes))
     numUnits = len(units)
 
-    psths = np.zeros([int(np.ceil(maxBin/bin_size)), numUnits])
+    psths = np.zeros([int(np.ceil((maxBin-minBin)/bin_size)), numUnits])
     if verbose:
         print('psth size is',psths.shape)
-    for i in range(len(samples)):
-        for stepSample, stepSpike in zip(samples[i], spikes[i]):
+    for i in range(len(modSamples)):
+        for stepSample, stepSpike in zip(modSamples[i], spikes[i]):
             if stepSpike in units:
                 if int(np.floor(stepSample/bin_samples)) == psths.shape[0]:
                     psths[int(np.floor(stepSample/bin_samples))-1, np.where(units == stepSpike)[0][0]] += 1 ## for the rare instance when a spike is detected at the last sample of a sweep
@@ -100,15 +114,15 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
                     psths[int(np.floor(stepSample/bin_samples)), np.where(units == stepSpike)[0][0]] += 1
     psth_dict = {}
     if rate:
-        psth_dict['psths'] = psths/bin_size/len(samples) # in units of Hz
+        psth_dict['psths'] = psths/bin_size/len(modSamples) # in units of Hz
     else:
-        psth_dict['psths'] = psths/len(samples) # in units of spikes/trial in each bin
+        psth_dict['psths'] = psths/len(modSamples) # in units of spikes/trial in each bin
 
     psths_bs = np.copy(np.transpose(psth_dict['psths']))
     psths_z = np.copy(np.transpose(psth_dict['psths']))
     for i,psth in enumerate(psths_bs):
-        tempMean = np.mean(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
-        tempStDev = np.std(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
+        tempMean = np.mean(psth[int((bs_window[0]-minBin)/bin_size):int((bs_window[1]-minBin)/bin_size)])
+        tempStDev = np.std(psth[int((bs_window[0]-minBin)/bin_size):int((bs_window[1]-minBin)/bin_size)])
         #print(tempMean)
         psths_bs[i] = psth - tempMean
         psths_z[i] = psths_bs[i]/tempStDev
@@ -116,7 +130,7 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
     psth_dict['psths_z'] = np.transpose(psths_z)
     psth_dict['bin_size'] = bin_size # in s
     psth_dict['sample_rate'] = sample_rate # in Hz
-    psth_dict['xaxis'] = np.arange(0,maxBin,bin_size)
+    psth_dict['xaxis'] = np.arange(minBin,maxBin,bin_size)
     psth_dict['units'] = units
     psth_dict['num_sweeps'] = len(samples)
     return psth_dict
