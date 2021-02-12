@@ -86,7 +86,8 @@ def calculateSpikesPerCycle(sineFile,samples,spikes=None,sampleRate=20000):
     outDict['baselines'] = baselines
     return outDict
 
-def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,duration=2,save=False, saveString = ''):
+def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,duration=2,save=False, saveString = '',
+plotFrequencies = 'all',PSTHthreshold=0.0,unitsIn=None):
     """
     Plot Raster and PSTH for each unit at each frequency.
     Inputs:
@@ -96,6 +97,9 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
         sampleRate - int, sample rate of intan acquisition
         binSize - float, bin size for PSTH
         save - boolean or str, whether to save plot, can specify 'png' or 'pdf'
+        plotFrequencies - 'all' or list, frequencies to plot
+        PSTHthreshold - fload, value (in mN) over which to include in PSTH below raster
+        unitsIn - list or ndarray, specify units to plot
     Output: displays and saves pyplot plots
     """
     sineAmplitudes, frequencies, baseline, Fs = importSineData(sineFile)
@@ -109,7 +113,10 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
     else:
         stimType = 'ramp'
     xlims = [-baseline/Fs,baseline*3/Fs] # used for all plots, so defining here
-    uniqueFrequencies = np.unique(frequencies)
+    if plotFrequencies is 'all':
+        uniqueFrequencies = np.unique(frequencies)
+    else:
+        uniqueFrequencies = plotFrequencies
 
     if stimType == 'step':
         for frequency in uniqueFrequencies:
@@ -117,10 +124,13 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
             amplitudes = sineAmplitudes[ind]
             sortInd = np.argsort(amplitudes)
             overallInd = ind[sortInd] ## this index all sweeps == frequency, sorted by amplitude of sine wave
-
+            threshInd = ind[sortInd[np.sort(amplitudes)>PSTHthreshold]]
             ## generating PSTH -- an average of all trials at the current frequency
-            units = np.unique(np.concatenate(spikes))
-            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in overallInd],[spikes[n] for n in overallInd],
+            if unitsIn is None:
+                units = np.unique(np.concatenate(spikes))
+            else:
+                units = unitsIn
+            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(binSize,[samples[n] for n in threshInd],[spikes[n] for n in threshInd],
                                                         units=units,bs_window=[0,baseline/sampleRate],duration=duration,sample_rate=sampleRate)
 
             ## plotting raster and PSTH for each unit
@@ -147,13 +157,15 @@ def plotSineRasters(sineFile,samples,spikes=None,sampleRate=20000,binSize=0.005,
                 ax[0].set_title('Unit {0:d}, {1:d} Hz'.format(unit,frequency),pad=8)
                 plt.subplots_adjust(left=0.15,bottom=0.15,top=0.9,hspace=0.05,right=0.95)
                 if save == True:
-                    plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=300,transparent=True)
+                    plt.savefig('Unit{0:d}_{1:d}Hz.png'.format(unit,frequency),dpi=600,transparent=True)
                 elif save == 'png':
-                    plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=300,transparent=True)
+                    plt.savefig('Unit{0:d}_{1:d}Hz_{2}.png'.format(unit,frequency,saveString),dpi=600,transparent=True)
                 elif save == 'pdf':
-                    plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),transparent=True)
+                    plt.savefig('Unit{0:d}_{1:d}Hz.pdf'.format(unit,frequency),dpi=600,transparent=True)
                 plt.show()
                 plt.close()
+            if len(uniqueFrequencies) == 1:
+                return tempPSTH
     else:
         for frequency in uniqueFrequencies:
             ind = np.where(frequencies == frequency)[0]
