@@ -27,53 +27,103 @@ def importJRCLUST(filepath, annotation='single', depth=250):
     """
     outDict = {}
 
-    S0 = scipy.io.loadmat(filepath,squeeze_me=True, struct_as_record=False)
 
-    spikeAnnotations = S0['S0'].S_clu.csNote_clu
 
     try:
+        loadedFile = scipy.io.loadmat(filepath,squeeze_me=True, struct_as_record=False)
+
+        spikeAnnotations = loadedFile['S0'].S_clu.csNote_clu
+
+        try:
+            annotatedUnits = np.where(spikeAnnotations == annotation)[0]+1 # +1 to account for 1-indexing of jrclust output; jrc spikes that = 0 are not classified
+        except(FutureWarning):
+            print('Not all units are annotated (FutureWarning triggered).')
+            pass
+        goodSamples = loadedFile['S0'].viTime_spk
+        goodSpikes = loadedFile['S0'].S_clu.viClu
+
+        goodSamples = goodSamples[np.isin(goodSpikes,annotatedUnits)]
+        goodSpikes = goodSpikes[np.isin(goodSpikes,annotatedUnits)]
+
+        outDict['spikeSites'] = loadedFile['S0'].viSite_spk ## list of site identity for all spikes
+        outDict['allSamples'] = loadedFile['S0'].viTime_spk ## list of samples for all spikes
+        outDict['units'] = np.unique(goodSpikes)
+        outDict['sampleRate'] = loadedFile['S0'].P.sRateHz
+        outDict['goodSamples'] = goodSamples
+        outDict['goodSpikes'] = goodSpikes
+        outDict['goodTimes'] = goodSamples/loadedFile['S0'].P.sRateHz
+        outDict['unitPosXY'] = (loadedFile['S0'].S_clu.vrPosX_clu[spikeAnnotations == annotation],loadedFile['S0'].S_clu.vrPosY_clu[spikeAnnotations == annotation])
+        outDict['depthIndices'] = np.argsort(loadedFile['S0'].S_clu.vrPosY_clu[spikeAnnotations == annotation]) ## to get an index to use for sorting by depth
+        outDict['tmrWav_raw_clu'] = np.transpose(loadedFile['S0'].S_clu.tmrWav_raw_clu[:,:,spikeAnnotations == annotation])
+        outDict['tmrWav_spk_clu'] = np.transpose(loadedFile['S0'].S_clu.tmrWav_spk_clu[:,:,spikeAnnotations == annotation])
+        outDict['Lratio'] = loadedFile['S0'].S_clu.vrLRatio_clu[spikeAnnotations == annotation]
+        outDict['IsoDist'] = loadedFile['S0'].S_clu.vrIsoDist_clu[spikeAnnotations == annotation]
+        outDict['ISIratio'] = loadedFile['S0'].S_clu.vrIsiRatio_clu[spikeAnnotations == annotation]
+        outDict['viSite_clu'] = loadedFile['S0'].S_clu.viSite_clu[spikeAnnotations == annotation] - 1 # subtract 1 for python indexing
+
+
+        ## calculating trough to peak time
+        spikeTroughPeak = []
+        for i in range(len(np.unique(goodSpikes))):
+            waveform = outDict['tmrWav_raw_clu'][i,outDict['viSite_clu'][i],:] ## extracts the waveform from the best spike
+            if loadedFile['S0'].dimm_raw[0] == 81:
+                spikeTroughPeak.append(np.where(waveform[22:] == np.max(waveform[22:]))[0][0]) # trough occurs at sample 22 for raw waveforms with 81 samples
+            elif loadedFile['S0'].dimm_raw[0] == 41:
+                spikeTroughPeak.append(np.where(waveform[12:] == np.max(waveform[12:]))[0][0]) # for raw waveforms with 41 samples, trough occurs at sample 12, finding location of maximum post trough
+            else:
+                print('Raw waveform dimensions do not match those hard-coded into this function...')
+                ## perhaps this is generalizable: np.int(np.ceil(81/4)+1)
+                # need to more test cases to be sure
+        spikeTroughPeak = np.array(spikeTroughPeak)/outDict['sampleRate'] # convert to s
+        outDict['spikeTroughPeak'] = spikeTroughPeak
+    except NotImplementedError:
+        import h5py ### use the following to import from JRCLUST v4.0
+        loadedFile = h5py.File(filepath,'r')
+        outDict['spikeSites'] = loadedFile['spikeSites'][:].reshape(-1)
+        outDict['allSamples'] = loadedFile['spikeTimes'][:].reshape(-1)
+
+        spikeAnnotations = []
+        for column in loadedFile['clusterNotes']:
+            row_data = []
+            for row_number in range(len(column)):
+                row_data.append(''.join(map(chr,loadedFile[column[row_number]][:].reshape(-1))))
+            spikeAnnotations.append(row_data[0])
+        spikeAnnotations = np.transpose(spikeAnnotations)
         annotatedUnits = np.where(spikeAnnotations == annotation)[0]+1 # +1 to account for 1-indexing of jrclust output; jrc spikes that = 0 are not classified
-    except(FutureWarning):
-        print('Not all units are annotated (FutureWarning triggered).')
-        pass
-    goodSamples = S0['S0'].viTime_spk
-    goodSpikes = S0['S0'].S_clu.viClu
+        goodSamples = loadedFile['spikeTimes'][:].reshape(-1)
+        goodSpikes = loadedFile['spikeClusters'][:].reshape(-1)
 
-    goodSamples = goodSamples[np.isin(goodSpikes,annotatedUnits)]
-    goodSpikes = goodSpikes[np.isin(goodSpikes,annotatedUnits)]
+        goodSamples = goodSamples[np.isin(goodSpikes,annotatedUnits)]
+        goodSpikes = goodSpikes[np.isin(goodSpikes,annotatedUnits)]
 
-    outDict['spikeSites'] = S0['S0'].viSite_spk ## list of site identity for all spikes
-    outDict['allSamples'] = S0['S0'].viTime_spk ## list of samples for all spikes
-    outDict['units'] = np.unique(goodSpikes)
-    outDict['sampleRate'] = S0['S0'].P.sRateHz
-    outDict['goodSamples'] = goodSamples
-    outDict['goodSpikes'] = goodSpikes
-    outDict['goodTimes'] = goodSamples/S0['S0'].P.sRateHz
-    outDict['unitPosXY'] = (S0['S0'].S_clu.vrPosX_clu[spikeAnnotations == annotation],S0['S0'].S_clu.vrPosY_clu[spikeAnnotations == annotation])
-    outDict['depthIndices'] = np.argsort(S0['S0'].S_clu.vrPosY_clu[spikeAnnotations == annotation]) ## to get an index to use for sorting by depth
-    outDict['tmrWav_raw_clu'] = np.transpose(S0['S0'].S_clu.tmrWav_raw_clu[:,:,spikeAnnotations == annotation])
-    outDict['tmrWav_spk_clu'] = np.transpose(S0['S0'].S_clu.tmrWav_spk_clu[:,:,spikeAnnotations == annotation])
-    outDict['Lratio'] = S0['S0'].S_clu.vrLRatio_clu[spikeAnnotations == annotation]
-    outDict['IsoDist'] = S0['S0'].S_clu.vrIsoDist_clu[spikeAnnotations == annotation]
-    outDict['ISIratio'] = S0['S0'].S_clu.vrIsiRatio_clu[spikeAnnotations == annotation]
-    outDict['viSite_clu'] = S0['S0'].S_clu.viSite_clu[spikeAnnotations == annotation] - 1 # subtract 1 for python indexing
+        outDict['units'] = np.unique(goodSpikes)
+        outDict['sampleRate'] = 20000 ## hard coded for now because not specified in new results file
+        outDict['goodSamples'] = goodSamples
+        outDict['goodSpikes'] = goodSpikes
+        outDict['goodTimes'] = goodSamples/20000
+        outDict['unitPosXY'] = loadedFile['clusterCentroids'][:,spikeAnnotations=='single'] ## units (rows) by centroidPositions (X then Y)
+        outDict['depthIndices'] = np.argsort(loadedFile['clusterCentroids'][:,spikeAnnotations=='single'][1,:]) ## to get an index to use for sorting by depth
 
+        outDict['rawWaveforms'] = np.transpose(loadedFile['meanWfGlobalRaw'][spikeAnnotations == annotation,:,:])
+        outDict['filteredWaveforms'] = np.transpose(loadedFile['meanWfGlobal'][spikeAnnotations == annotation,:,:])
+        outDict['Lratio'] = loadedFile['unitLRatio'][0,spikeAnnotations == annotation]
+        outDict['IsoDist'] = loadedFile['unitIsoDist'][0,spikeAnnotations == annotation]
+        outDict['ISIratio'] = loadedFile['unitISIRatio'][0,spikeAnnotations == annotation]
+        outDict['viSite_clu'] = np.int32(loadedFile['clusterSites'][spikeAnnotations == annotation,0] - 1) # subtract 1 for python indexing
 
-    ## calculating trough to peak time
-    spikeTroughPeak = []
-    for i in range(len(np.unique(goodSpikes))):
-        waveform = outDict['tmrWav_raw_clu'][i,outDict['viSite_clu'][i],:] ## extracts the waveform from the best spike
-        if S0['S0'].dimm_raw[0] == 81:
-            spikeTroughPeak.append(np.where(waveform[22:] == np.max(waveform[22:]))[0][0]) # trough occurs at sample 22 for raw waveforms with 81 samples
-        elif S0['S0'].dimm_raw[0] == 41:
-            spikeTroughPeak.append(np.where(waveform[12:] == np.max(waveform[12:]))[0][0]) # for raw waveforms with 41 samples, trough occurs at sample 12, finding location of maximum post trough
-        else:
-            print('Raw waveform dimensions do not match those hard-coded into this function...')
-            ## perhaps this is generalizable: np.int(np.ceil(81/4)+1)
-            # need to more test cases to be sure
-    spikeTroughPeak = np.array(spikeTroughPeak)/outDict['sampleRate'] # convert to s
-    outDict['spikeTroughPeak'] = spikeTroughPeak
-
+        spikeTroughPeak = []
+        for i in range(len(np.unique(goodSpikes))):
+            waveform = outDict['rawWaveforms'][:,outDict['viSite_clu'][i],i] ## extracts the waveform from the best spike
+            if len(waveform) == 81:
+                spikeTroughPeak.append(np.where(waveform[22:] == np.max(waveform[22:]))[0][0]) # trough occurs at sample 22 for raw waveforms with 81 samples
+            elif len(waveform) == 41:
+                spikeTroughPeak.append(np.where(waveform[12:] == np.max(waveform[12:]))[0][0]) # for raw waveforms with 41 samples, trough occurs at sample 12, finding location of maximum post trough
+            else:
+                print('Raw waveform dimensions do not match those hard-coded into this function...')
+                ## perhaps this is generalizable: np.int(np.ceil(81/4)+1)
+                # need to more test cases to be sure
+        spikeTroughPeak = np.array(spikeTroughPeak)/outDict['sampleRate'] # convert to s
+        outDict['spikeTroughPeak'] = spikeTroughPeak
 
     ## calculating layer
     depths = outDict['unitPosXY'][1] - depth
@@ -95,6 +145,8 @@ def importJRCLUST(filepath, annotation='single', depth=250):
             layers.append(10) ## not cortical
     layers = np.array(layers)
     outDict['layers'] = layers
+
+
 
     return outDict
 
