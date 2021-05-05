@@ -90,7 +90,10 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
         minBin = np.floor(minTime/bin_size)*bin_size
     else:
         minTime = min(np.concatenate(samples))/sample_rate
-        minBin = np.floor(minTime/bin_size)*bin_size
+        if minTime < 0:
+            minBin = np.floor(minTime/bin_size)*bin_size
+        else:
+            minBin = 0
         maxBin = duration - minBin
 
     if minBin < 0:
