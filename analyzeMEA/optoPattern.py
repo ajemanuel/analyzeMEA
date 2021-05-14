@@ -110,7 +110,7 @@ def extractLaserPSTH_intan(laser_trigger, samples, spikes, duration=0.1, sampleR
         return samplesList, spikesList
 
 
-def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_window, units, baseline=10, save=False, saveString='', smoothBin=0, voltageToDistance = 3.843750000e+03):
+def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_window, units, baseline=10, save=False, saveString='', smoothBin=0, voltageToDistance = 3.843750000e+03, showplots=True):
     """
     Inputs:
     matFile - string, path to file generated with randSquareOffset stimulus
@@ -155,22 +155,23 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
                 units=units, duration=float(parameters['ISI']+baseline), rate=False)
             for unit in range(numUnits):
                 output[binxy[0],binxy[1],unit] = np.mean(tempPSTH['psths'][window[0]:window[1],unit]) - np.mean(tempPSTH['psths'][bs_window[0]:bs_window[1],unit])
-    for unit in range(numUnits):
-        if smoothBin > 0:
-            output[:,:,unit] = scipy.ndimage.gaussian_filter(output[:,:,unit],smoothBin)
-        plt.figure(figsize=(4,4))
-        a0 = plt.axes()
-        absMax = np.amax(np.absolute(output[:,:,unit]))
-        sc = a0.imshow(output[:,:,unit],extent=[ymin/1000, ymax/1000, xmin/1000, xmax/1000],origin='lower',
-                        clim=[-absMax,absMax],cmap='bwr',interpolation='none')
-        a0.set_title('Unit {0}'.format(units[unit]))
-        a0.set_xlabel('mm')
-        a0.set_ylabel('mm')
-        cb = plt.colorbar(sc,fraction=.03)
-        cb.set_label(r'$\Delta$ Rate (Hz)')
-        plt.tight_layout()
-        if save:
-            plt.savefig('lasRFunit{0}{1}.png'.format(units[unit],saveString),dpi=300,transparent=True)
-        plt.show()
-        plt.close()
+    if showplots:
+        for unit in range(numUnits):
+            if smoothBin > 0:
+                output[:,:,unit] = scipy.ndimage.gaussian_filter(output[:,:,unit],smoothBin)
+            plt.figure(figsize=(4,4))
+            a0 = plt.axes()
+            absMax = np.amax(np.absolute(output[:,:,unit]))
+            sc = a0.imshow(output[:,:,unit],extent=[ymin/1000, ymax/1000, xmin/1000, xmax/1000],origin='lower',
+                            clim=[-absMax,absMax],cmap='bwr',interpolation='none')
+            a0.set_title('Unit {0}'.format(units[unit]))
+            a0.set_xlabel('mm')
+            a0.set_ylabel('mm')
+            cb = plt.colorbar(sc,fraction=.03)
+            cb.set_label(r'$\Delta$ Rate (Hz)')
+            plt.tight_layout()
+            if save:
+                plt.savefig('lasRFunit{0}{1}.png'.format(units[unit],saveString),dpi=300,transparent=True)
+            plt.show()
+            plt.close()
     return output
