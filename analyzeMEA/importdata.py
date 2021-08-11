@@ -3,6 +3,7 @@ import numpy as np
 import re
 import glob
 import os
+import pandas as pd
 
 def importJRCLUST(filepath, annotation='single', depth=250):
     """
@@ -147,6 +148,38 @@ def importJRCLUST(filepath, annotation='single', depth=250):
     outDict['layers'] = layers
 
 
+
+    return outDict
+
+def importKS(folderpath,depth=250,sampleRate=20000):
+    """
+    Imports the features of the kilosort output I use most.
+
+    inputs:
+        folderpath - str with path to kilosort output
+        depth - int/float, depth of top electrode site for neuronexus_poly2.prb or depth of bottom electrode site for cnt_h4.prb,
+                in microns (default 250 microns, my typical insertion depth of neuronexus_poly2 probe tip is 1100 microns)
+        sampleRate - int sample rate in Hz (find in params.py if unknown)
+    output: Dict with keys
+        goodSpikes - ndarray of clusters (unit identities of spikes)
+        goodSamples - ndarray of spike samples (time of spike)
+        goodTimes - ndarray of spike times (in s)
+        not yet implemented:
+            unitPosXY - tuple of two ndarrays, (X center of mass, Y center of mass)
+            depthIndices - index of good units in the order of their depth
+            depths - depth of site (taking into account depth of probe)
+            layers - the cortical layer to which the depth corresponds
+            units - list of all units included in goodSpikes
+    """
+
+    clusterInfo = pd.read_csv(folderpath+'\\cluster_info.tsv',sep='\t')
+    spikeClusters = np.load(folderpath+'\\spike_clusters.npy')
+    spikeTimes = np.load(folderpath+'\\spike_times.npy')
+    good_ids = np.array(clusterInfo['id'][clusterInfo['KSLabel'] == 'good'])
+    outDict = {}
+    outDict['goodSpikes'] = spikeClusters[np.array([n in good_ids for n in spikeClusters])]
+    outDict['goodSamples'] = spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1)
+    outDict['goodTimes'] = outDict['goodSamples']/sampleRate
 
     return outDict
 
