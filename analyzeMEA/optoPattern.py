@@ -150,11 +150,12 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
                              (laserPositions[0] < xmin + binSizeMicron*(binxy[0]+1)) &
                              (laserPositions[1] > (ymin + binSizeMicron*binxy[1])) &
                              (laserPositions[1] < ymin + binSizeMicron*(binxy[1]+1)))[0]
-        if len(tempPositions > 0):
-            tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.001,[samplesList[a] for a in tempPositions],[spikesList[a] for a in tempPositions],
-                units=units, duration=float(parameters['ISI']+baseline), rate=False)
-            for unit in range(numUnits):
-                output[binxy[0],binxy[1],unit] = np.mean(tempPSTH['psths'][window[0]:window[1],unit]) - np.mean(tempPSTH['psths'][bs_window[0]:bs_window[1],unit])
+        if len(tempPositions) > 0:
+            if len(np.concatenate([samplesList[a] for a in tempPositions])) > 0:
+                tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.001,[samplesList[a] for a in tempPositions],[spikesList[a] for a in tempPositions],
+                    units=units, duration=float(parameters['ISI']+baseline), rate=False)
+                for unit in range(numUnits):
+                    output[binxy[0],binxy[1],unit] = np.mean(tempPSTH['psths'][window[0]:window[1],unit]) - np.mean(tempPSTH['psths'][bs_window[0]:bs_window[1],unit])
     if showplots:
         for unit in range(numUnits):
             if smoothBin > 0:
@@ -175,3 +176,149 @@ def calcBinnedOpticalResponse(matFile, samples, spikes, binSize, window, bs_wind
             plt.show()
             plt.close()
     return output
+
+def calcOpticalResponseTS(matFile, samples, spikes, binSize, windowSize, bWindowStart, units, baseline=10, smoothBin=0, voltageToDistance = 3.843750000e+03):
+    """
+    Inputs:
+    matFile - string, path to file generated with randSquareOffset stimulus
+    samples - list, samples during stimulus
+    spikes - list, cluster identities during stimulus
+    binSize - float, size of spatial bin
+    windowSize - int, size of window of analysis (in ms)
+    bWindowStart - time for start of baseline window (in ms)
+    units - sequence - units to include
+    baseline - int or float, size of baseline period for laser PSTH (in ms; default = 10) e.g., stimulus onset at 10 ms after start of laser PSTH
+    smoothBin - float, size of gaussian filter for smoothing (in bin units), default=0, no smoothing
+    voltageToDistance - float, calibration for converting voltage into micron distance; DRG rig = 7000
+    Output:
+    ouput - ndarray, optical receptive fields with shape (numBins, numBins, numTimeBins, numUnits)
+    """
+    baseline = baseline/1000 ## converting to s
+    samplesList, spikesList = extractLaserPSTH(matFile, samples, spikes, baseline=baseline, includeLaserList=False)
+    parameters = scipy.io.loadmat(matFile, variable_names=['edgeLength','offsetX','offsetY','ISI'])
+    laserPositions = np.transpose(extractLaserPositions(matFile,voltageToDistance=voltageToDistance))
+    binSizeMicron = binSize * 1000
+    halfEdgeLength = parameters['edgeLength']/2
+    xmin = int(parameters['offsetX'] - halfEdgeLength)
+    xmax = int(parameters['offsetX'] + halfEdgeLength)
+    ymin = int(parameters['offsetY'] - halfEdgeLength)
+    ymax = int(parameters['offsetY'] + halfEdgeLength)
+
+    numBins = int(parameters['edgeLength']/binSizeMicron)
+    numUnits = len(units)
+    numTimeBins = int((parameters['ISI'][0][0] + baseline)*1000/windowSize)
+    output = np.zeros([numBins, numBins, numTimeBins, numUnits])
+    bs_window = (bWindowStart, bWindowStart+windowSize)
+
+    for Bin in range(numBins * numBins):
+        binxy = np.unravel_index(Bin,(numBins,numBins))
+        tempPositions = np.where((laserPositions[0] > (xmin + binSizeMicron*binxy[0])) &
+                             (laserPositions[0] < xmin + binSizeMicron*(binxy[0]+1)) &
+                             (laserPositions[1] > (ymin + binSizeMicron*binxy[1])) &
+                             (laserPositions[1] < ymin + binSizeMicron*(binxy[1]+1)))[0]
+        if len(tempPositions > 0):
+            try:
+                tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.001,[samplesList[a] for a in tempPositions],[spikesList[a] for a in tempPositions],
+                    units=units, duration=float(parameters['ISI']+baseline), rate=False)
+
+                for timeBin in range(numTimeBins):
+                    window = (windowSize * timeBin, windowSize*timeBin+windowSize)
+                    for unit in range(numUnits):
+                        output[binxy[0],binxy[1],timeBin,unit] = np.mean(tempPSTH['psths'][window[0]:window[1],unit]) - np.mean(tempPSTH['psths'][bs_window[0]:bs_window[1],unit])
+            except ValueError: # thrown when empty sequence entered into the makeSweepPSTH
+                pass ##output assigned as 0
+    if smoothBin != 0:
+        for unit in range(numUnits):
+            output[:,:,:,unit] = scipy.ndimage.gaussian_filter(output[:,:,:,unit],smoothBin)
+    return output
+
+
+def calcAddedSpikes(file, samples, spikes, units, addedSpikeWindow=(0,75), compareWindow=(75,150),
+radius=450, spatialBin=0.25, windowSize=8, baseline=10, bWindowStart=0, smoothBin=[1,1,0], useMeanBaselineRate=True):
+    """
+    Calculation of the number of action potentials evoked by each stimulus in an area surrounding the most responsive region for each specified unit.
+
+    Inputs:
+    file - string, path to file generated with randSquareOffset stimulus
+    samples - list, samples during stimulus
+    spikes - list, cluster IDs for each sample in samples
+    units - list or ndarray, units to evaluate
+    addedSpikeWindow - tuple len 2, beginning and end of window in which to consider added spikes
+    compareWindow - tuple len 2, beginning and end of window in which to compare added spikes (should be same duration)
+    radius - int or float, radius around peak value to consider for added spikes, in microns
+    spatialBin - float, size of spatial bins, in mm
+    windowSize - float, size of window for binned time series, in ms
+    baseline - int, duration prior to laser pulse, in ms
+    bWindowStart - int, time bin used to for subtraction of firing rate in binned time series, in ms
+    smoothBin - float or list len 3, sigmas used for the gaussian filter, default smooths in spatial but not temporal domains
+    useMeanBaselineRate - boolean, compare spikes against mean baseline firing rate (True,default) or trial-by-trial (False)
+
+    Output:
+    returns dictionary, keys are unitIDs
+     - each value is a list of added spikes by trial
+    """
+
+    parameters = scipy.io.loadmat(file,variable_names=['edgeLength','offsetX','offsetY','ISI'])
+    edgeLength = int(parameters['edgeLength'])
+    offsetX = int(parameters['offsetX'])
+    offsetY = int(parameters['offsetY'])
+
+    positions = np.array(extractLaserPositions(file))
+
+
+    laserSamples, laserSpikes = extractLaserPSTH(file,samples,spikes,baseline=baseline/1000,includeLaserList=False,duration=parameters['ISI']+baseline/1000)
+    if useMeanBaselineRate:
+        tempPSTH = analyzeMEA.rastPSTH.makeSweepPSTH(0.001,laserSamples,laserSpikes,units=units,bs_window=[0,baseline/1000])
+        meanBaselines = tempPSTH['psths'][:baseline,:].mean(axis=0)
+    addedSpikes = {}
+
+    # calc binned time series for optopattern stimulus
+    binnedTimeSeries = calcOpticalResponseTS(file,samples,spikes,spatialBin,windowSize,bWindowStart,units,baseline=baseline,smoothBin = [1,1,0])
+
+    for i, unit in enumerate(units):
+
+        # find location and time of maximum response
+        temp = binnedTimeSeries[:,:,:,i].reshape(binnedTimeSeries.shape[:-1])
+        maxX, maxY, maxT = np.array(np.where(np.abs(temp) == np.max(np.abs(temp))))[:,0]
+        print('Unit {} max response location: {}'.format(unit,(maxX,maxY,maxT)))
+        # convert location to actual micron position that was sent to galvos
+        X = maxX/binnedTimeSeries.shape[0] * edgeLength + calcXYlims(file)[0][0]
+        Y = maxY/binnedTimeSeries.shape[1] * edgeLength + calcXYlims(file)[1][0]
+
+        dists = []
+        for pos in positions:
+            dists.append(np.linalg.norm(pos - (X,Y)))
+        dists = np.array(dists)
+        indices = dists < radius
+
+        tempSamples = [laserSamples[n] for n in np.where(indices)[0]]
+        tempSpikes = [laserSpikes[n] for n in np.where(indices)[0]]
+
+        unitSamples = []
+        unitSpikes = []
+
+        for j, (sample, spike) in enumerate(zip(tempSamples,tempSpikes)):
+            unitSamples.append(sample[spike==unit]/20-baseline) # in ms (assuming sample rate is 20kHz)
+            unitSpikes.append(spike[spike==unit]-unit)
+
+        addedSpikes[unit] = []
+        if useMeanBaselineRate:
+            numBaselineSpikes = meanBaselines[i] * (addedSpikeWindow[1]-addedSpikeWindow[0])/1000
+            for k, (sample, spike) in enumerate(zip(unitSamples,unitSpikes)): # for each trial
+                addedSpikes[unit].append(sum((sample > addedSpikeWindow[0]) & (sample <= addedSpikeWindow[1])) -
+                   numBaselineSpikes)
+
+        else:
+            for k, (sample, spike) in enumerate(zip(unitSamples,unitSpikes)):
+                addedSpikes[unit].append(sum((sample > addedSpikeWindow[0]) & (sample <= addedSpikeWindow[1])) -
+                               sum((sample > compareWindow[0]) & (sample <= compareWindow[1])))
+    return(addedSpikes)
+
+
+def calcXYlims(file):
+    temp = scipy.io.loadmat(file,variable_names=['offsetX','offsetY','edgeLength'])
+    offsetX = temp['offsetX'][0][0]
+    offsetY = temp['offsetY'][0][0]
+    edgeLength = temp['edgeLength'][0][0]
+
+    return (offsetX - edgeLength/2,offsetX+edgeLength/2),(offsetY-edgeLength/2,offsetY+edgeLength/2)
