@@ -164,6 +164,7 @@ def importKS(folderpath,depth=250,sampleRate=20000):
         goodSpikes - ndarray of clusters (unit identities of spikes)
         goodSamples - ndarray of spike samples (time of spike)
         goodTimes - ndarray of spike times (in s)
+        sampleRate - int sample rate in Hz (same as input)
         not yet implemented:
             unitPosXY - tuple of two ndarrays, (X center of mass, Y center of mass)
             depthIndices - index of good units in the order of their depth
@@ -180,6 +181,7 @@ def importKS(folderpath,depth=250,sampleRate=20000):
     outDict['goodSpikes'] = spikeClusters[np.array([n in good_ids for n in spikeClusters])]
     outDict['goodSamples'] = spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1)
     outDict['goodTimes'] = outDict['goodSamples']/sampleRate
+    outDict['sampleRate'] = sampleRate
 
     return outDict
 
