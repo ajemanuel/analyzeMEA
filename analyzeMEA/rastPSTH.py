@@ -29,9 +29,9 @@ def plotStimRasters(stimulus, samples, spikes, unit, ltime, rtime, save=False, s
     if ltime >= 0:
         xaxis = np.arange(ltime-baseline,rtime-baseline,1/sample_rate)
         for sweep in stimulus:
-            a0.plot(xaxis,sweep[int(sample_rate*ltime):int(sample_rate*rtime)],linewidth=.5,color='r') # add +5*i to the y axis to get separate traces
+            a0.plot(xaxis,sweep[int(sample_rate*ltime):int(sample_rate*rtime)],linewidth=.5,color='gray') # add +5*i to the y axis to get separate traces
 
-    xlim = [ltime,rtime]
+    xlim = [ltime-baseline,rtime-baseline]
     a0.set_xlim(xlim)
     a0.set_title('Unit '+str(unit))
     a0.set_xticks([])

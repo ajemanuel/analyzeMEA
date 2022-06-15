@@ -7,3 +7,4 @@ from . import optoPattern
 from . import printhead
 from . import rastPSTH
 from . import sine
+from . import wheel
