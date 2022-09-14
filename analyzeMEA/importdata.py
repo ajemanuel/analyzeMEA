@@ -176,12 +176,14 @@ def importKS(folderpath,depth=250,sampleRate=20000):
     clusterInfo = pd.read_csv(folderpath+'\\cluster_info.tsv',sep='\t')
     spikeClusters = np.load(folderpath+'\\spike_clusters.npy')
     spikeTimes = np.load(folderpath+'\\spike_times.npy')
-    good_ids = np.array(clusterInfo['id'][clusterInfo['KSLabel'] == 'good'])
+    good_ids = np.array(clusterInfo['id'][clusterInfo['group'] == 'good'])
     outDict = {}
     outDict['goodSpikes'] = spikeClusters[np.array([n in good_ids for n in spikeClusters])]
-    outDict['goodSamples'] = spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1)
+    outDict['goodSamples'] = np.int64(spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1))
     outDict['goodTimes'] = outDict['goodSamples']/sampleRate
     outDict['sampleRate'] = sampleRate
+    outDict['depth'] = clusterInfo['depth']
+    outDict['depthIndices'] = np.argsort(clusterInfo['depth']) ## to get an index to use for sorting by depth
 
     return outDict
 
