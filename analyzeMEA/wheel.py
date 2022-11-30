@@ -61,6 +61,7 @@ def classify_gratings_manually(footfallImages,savename = 'grating_classification
         grating_classification = np.load(savename)
         grating_classification = [n for n in grating_classification]
     except:
+        print('No gratings file found, starting new one')
         grating_classification = []
 
     numFrames = len(footfallImages[len(grating_classification):])

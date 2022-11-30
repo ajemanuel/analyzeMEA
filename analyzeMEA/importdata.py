@@ -176,7 +176,11 @@ def importKS(folderpath,depth=250,sampleRate=20000):
     clusterInfo = pd.read_csv(folderpath+'\\cluster_info.tsv',sep='\t')
     spikeClusters = np.load(folderpath+'\\spike_clusters.npy')
     spikeTimes = np.load(folderpath+'\\spike_times.npy')
-    good_ids = np.array(clusterInfo['id'][clusterInfo['group'] == 'good'])
+    try:
+        good_ids = np.array(clusterInfo['id'][clusterInfo['group'] == 'good'])
+    except KeyError:
+        good_ids = np.array(clusterInfo['cluster_id'][clusterInfo['group'] == 'good'])
+
     outDict = {}
     outDict['goodSpikes'] = spikeClusters[np.array([n in good_ids for n in spikeClusters])]
     outDict['goodSamples'] = np.int64(spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1))
