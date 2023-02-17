@@ -5,7 +5,7 @@ import glob
 import os
 import pandas as pd
 
-def importJRCLUST(filepath, annotation='single', depth=250):
+def importJRCLUST(filepath, annotation='unsorted', depth=250):
     """
     Imports the features of the JrClust output I use most.
 
@@ -172,18 +172,64 @@ def importKS(folderpath,depth=250,sampleRate=20000):
             layers - the cortical layer to which the depth corresponds
             units - list of all units included in goodSpikes
     """
-
+    
     clusterInfo = pd.read_csv(folderpath+'\\cluster_info.tsv',sep='\t')
     spikeClusters = np.load(folderpath+'\\spike_clusters.npy')
     spikeTimes = np.load(folderpath+'\\spike_times.npy')
-    good_ids = np.array(clusterInfo['id'][clusterInfo['KSLabel'] == 'good'])
+    good_ids = np.array(clusterInfo['cluster_id'][clusterInfo['KSLabel'] == 'good'])
+    good_index =np.array([n in good_ids for n in spikeClusters])
     outDict = {}
     outDict['goodSpikes'] = spikeClusters[np.array([n in good_ids for n in spikeClusters])]
     outDict['goodSamples'] = spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1)
     outDict['goodTimes'] = outDict['goodSamples']/sampleRate
     outDict['sampleRate'] = sampleRate
+    outDict['depthIndices'] = np.argsort(clusterInfo['depth'][good_index])
 
     return outDict
+
+def importphy(folderpath,depth=1250,sampleRate=20000):
+    """
+    Imports the features of the kilosort output I use most.
+
+    inputs:
+        folderpath - str with path to kilosort output
+        depth - int/float, depth of top electrode site for neuronexus_poly2.prb or depth of bottom electrode site for cnt_h4.prb,
+                in microns (default 250 microns, my typical insertion depth of neuronexus_poly2 probe tip is 1100 microns)
+        sampleRate - int sample rate in Hz (find in params.py if unknown)
+    output: Dict with keys
+        goodSpikes - ndarray of clusters (unit identities of spikes)
+        goodSamples - ndarray of spike samples (time of spike)
+        goodTimes - ndarray of spike times (in s)
+        sampleRate - int sample rate in Hz (same as input)
+        not yet implemented:
+            unitPosXY - tuple of two ndarrays, (X center of mass, Y center of mass)
+            depthIndices - index of good units in the order of their depth
+            depths - depth of site (taking into account depth of probe)
+            layers - the cortical layer to which the depth corresponds
+            units - list of all units included in goodSpikes
+    """
+
+    
+    spikeClusters = np.load(folderpath+'\\spike_clusters.npy')
+    cluster_group = pd.read_csv(folderpath+'\\cluster_group.tsv',sep='\t')
+    spikeTimes = np.load(folderpath+'\\spike_times.npy')
+    good_ids = np.array(cluster_group['cluster_id'][cluster_group['group'] == 'good'])
+    good_index =np.array(cluster_group['group'] == 'good',dtype='bool')
+    clusterInfo = pd.read_csv(folderpath+'\\cluster_info.tsv',sep='\t')
+    
+    outDict = {}
+    outDict['goodSpikes'] = spikeClusters[np.array([n in good_ids for n in spikeClusters ])]
+    outDict['goodSamples'] = np.int64(spikeTimes[np.array([n in good_ids for n in spikeClusters])]).reshape(-1)
+
+    outDict['goodTimes'] = outDict['goodSamples']/sampleRate
+    outDict['sampleRate'] = sampleRate
+    #outDict['depths'] = np.array(clusterInfo['depth'])[good_index]
+    #outDict['depthIndices'] = np.argsort(np.array(clusterInfo['depth'])[good_index])
+    
+
+    return outDict
+
+
 
 def importDImat(filepath, sortOption='mtime'):
     """
