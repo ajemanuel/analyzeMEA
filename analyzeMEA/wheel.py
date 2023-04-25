@@ -170,26 +170,49 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True):
     return pvalues, OSunits, OSunits_noCorrection, meanVector, meanShuffleVectors
 
 
-        
-
+def plotMeanOris(trialRates,units,OSunits, save=True, saveFile='Oris_Mean_Rate.pdf'):
+    """
+    Example function call:
+    analyzeMEA.wheel.plotMeanOris(trialRates,np.unique(goodSpikes),OSunits,save=False)
+    """
+    
+    oris = [-45, 0, 45, 90]
+    f, ax = plt.subplots(1,4,figsize=[14,4])
+    for unit in range(len(units)):
+        if unit in OSunits:
+            resps = []
+            for ori in [1,2,3,4]:
+                resps.append(np.mean(trialRates[ori][:,unit]))
+            ax[np.argmax(resps)].plot(oris,resps/np.max(resps),marker='o',color='gray',markerfacecolor='white')
+    ax[0].set_ylabel('Norm. Mean Firing Rate')
+    for a in range(4):
+        ax[a].set_xlabel('Orientation')
+        ax[a].spines['top'].set_visible(False)
+        ax[a].spines['right'].set_visible(False)
+        ax[a].set_ylim([0,1.05])
+        ax[a].set_xticks([-45,0,45,90])
+        if a > 0:
+            ax[a].set_yticklabels([])
+    if save:
+        plt.savefig(saveFile, transparent=True,bbox_inches='tight')
 
 
 ### helper functions
 
-# def TwoSampleT2Test(X, Y):
-#     from scipy.stats import f
-#     nx , p = X.shape
-#     ny, _ = Y.shape
-#     delta = np.mean(X, axis=0) - np.mean(Y, axis=0)
-#     Sx = np.cov(X, rowvar=False)
-#     Sy = np.cov(Y, rowvar=False)
-#     S_pooled = ((nx-1)*Sx + (ny-1)*Sy)/(nx+ny-2)
-#     t_squared = (nx*ny)/(nx+ny) * np.matmul(np.matmul(delta.transpose(), np.linalg.inv(S_pooled)), delta)
-#     statistic = t_squared * (nx+ny-p-1)/(p*(nx+ny-2))
-#     F = f(p, nx+ny-p-1)
-#     p_value = 1 - F.cdf(statistic)
-#     print(f"test statistic: {statistic}\nDegrees of freedom: {p} and {nx+ny-p-1}\np-value: {p_value}")
-#     return statistic, p_value
+def TwoSampleT2Test(X, Y):
+    from scipy.stats import f
+    nx , p = X.shape
+    ny, _ = Y.shape
+    delta = np.mean(X, axis=0) - np.mean(Y, axis=0)
+    Sx = np.cov(X, rowvar=False)
+    Sy = np.cov(Y, rowvar=False)
+    S_pooled = ((nx-1)*Sx + (ny-1)*Sy)/(nx+ny-2)
+    t_squared = (nx*ny)/(nx+ny) * np.matmul(np.matmul(delta.transpose(), np.linalg.inv(S_pooled)), delta)
+    statistic = t_squared * (nx+ny-p-1)/(p*(nx+ny-2))
+    F = f(p, nx+ny-p-1)
+    p_value = 1 - F.cdf(statistic)
+    print(f"test statistic: {statistic}\nDegrees of freedom: {p} and {nx+ny-p-1}\np-value: {p_value}")
+    return statistic, p_value
 
 def OneSampleT2Test(X, nullHyp = None, verbose=False):
     from scipy.stats import f
