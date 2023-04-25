@@ -179,7 +179,7 @@ def plotMeanOris(trialRates,units,OSunits, save=True, saveFile='Oris_Mean_Rate.p
     oris = [-45, 0, 45, 90]
     f, ax = plt.subplots(1,4,figsize=[14,4])
     for unit in range(len(units)):
-        if unit in OSunits:
+        if units[unit] in OSunits:
             resps = []
             for ori in [1,2,3,4]:
                 resps.append(np.mean(trialRates[ori][:,unit]))
