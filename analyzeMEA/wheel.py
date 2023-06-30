@@ -7,6 +7,83 @@ import time
 from scipy.signal import savgol_filter, find_peaks
 
 
+
+def find_footfalls_DEG(predictions):
+    """
+    Determine the timing of footfalls based on the predicted contact events from deepethogram.
+
+    Inputs:
+    - predictions.csv files, sorted to match video order
+    Output:
+    - dictionary with footfalls and related variables
+
+
+    Usage example:
+    deg_files = glob.glob('*predictions.csv')
+    deg_files.sort(key=lambda x: x[-35:])
+    ffDict = analyzeMEA.wheel.find_footfalls_DEG(deg_files)
+    """
+    outDict = {}
+    
+    labels = []
+
+    for file in predictions:
+        labels.append(pd.read_csv(file))
+    labels = pd.concat(labels,ignore_index=True)
+
+    contact = np.bool8(labels['contact']+labels['partialContact'] > 0)
+    footfalls = np.where(contact[1:] > contact[:-1])[0]
+    footrises = np.where(contact[1:] < contact[:-1])[0]
+
+    footfallMatrix  = np.zeros([len(footfalls),300])
+
+    for i, plant in enumerate(footfalls):
+        if (plant > 100) and (plant < labels.shape[0]-200):
+            footfallMatrix[i,:] += 1* np.array(labels['partialContact'])[plant-100:plant+200]
+            footfallMatrix[i,:] += 2* np.array(labels['contact'])[plant-100:plant+200]
+            footfallMatrix[i, footfallMatrix[i,:] == 3] = 2
+
+    if footfalls[0] > footrises[0]: # foot in contact at beginning of recording
+        print('foot in contact at beginning of recording')
+        try:
+            stepLengths = footfalls - footrises
+            print('foot in contact at end of recording')
+        except ValueError:
+            stepLengths = footfalls - footrises[:-1]
+            print('foot not in contact at end of recording')
+        try:
+            durations = footrises[1:] - footfalls
+        except ValueError:
+            durations = footrises[1:] - footfalls[:-1]
+    elif footfalls[0] < footrises[0]: # foot not in contact at beginning of recording
+        print('foot not in contact at beginning of recording')
+        try:
+            stepLengths = footfalls[1:] - footrises
+        except ValueError:
+            stepLengths = footfalls[1:] - footrises[:-1]
+        try:
+            durations = footrises - footfalls
+        except ValueError:
+            durations = footrises - footfalls[:-1]
+
+    outDict['labels'] = labels
+    outDict['footfalls'] = footfalls
+    outDict['footrises'] = footrises
+    outDict['footfallMatrix'] = footfallMatrix
+    outDict['stepLengths'] = stepLengths
+    outDict['durations'] = durations
+    try:
+        outDict['footfalls_filtered'] = footfalls[:len(durations)][(durations > 15) & (stepLengths > 8)]
+        outDict['footrises_filtered'] = footrises[:len(durations)][(durations > 15) & (stepLengths > 8)]
+        outDict['durations_filtered'] = durations[(durations > 15) & (stepLengths > 8)]
+    except ValueError:
+        outDict['footfalls_filtered'] = footfalls[:len(durations)][(durations > 15) & (stepLengths[:-1] > 8)]
+        outDict['footrises_filtered'] = footrises[:len(durations)][(durations > 15) & (stepLengths[:-1] > 8)]
+        outDict['durations_filtered'] = durations[(durations > 15) & (stepLengths[:-1] > 8)]
+    return outDict
+
+
+
 def find_footfalls(intensity,peak_height = None,peak_distance = 0.1, frame_rate=200, plot=False):
     """
     Determine the timing of footfalls based on the intensity of the keypoint. This function finds peaks in the
