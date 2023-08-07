@@ -546,6 +546,7 @@ def runAlignment(firstImages,videoIndex, images, positions,
             footfallImages.append(im)
     RFPposition = []
     for i, file in enumerate(dlcFiles_ventral):
+        DLCmodel = pd.read_hdf(file).keys()[0][0]
         RFPposition.append(pd.read_hdf(file)[DLCmodel]['rightForepaw'])
     RFPposition = np.concatenate(RFPposition)
 
