@@ -525,6 +525,7 @@ def runAlignment(firstImages,videoIndex, images, positions,
         firstImages.append(im)
         videoIndex.append(np.ones(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))*i)
         cap.release()
+    videoIndex = np.concatenate(videoIndex)
     deg_files = glob.glob('*predictions.csv')
     deg_files.sort(key=lambda x: x[-35:])
     print(deg_files)
