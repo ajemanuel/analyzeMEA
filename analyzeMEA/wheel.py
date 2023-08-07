@@ -340,3 +340,228 @@ def rotate_points(center,angle,points):
 
     temp = np.matmul(temp,A)
     return temp + center
+
+
+def loadDepthMap(file,cropY=[300,-300]):
+    """
+    load file used to make 3D-printed texture
+    """
+    depthMap = np.array(h5py.File(file,'r')['top_depth_map'])[cropY[0]:cropY[1],:]
+    ## scale depth map values to image values
+    #print(np.min(depthMap),np.max(depthMap))
+    depthMap = depthMap * 255/0.75  ## future, make this dependent on depth map range
+    return depthMap
+
+
+def estimateRotFactor(image,depthMap,initialEstimate=0,resolution = 0.2, scaleFactor=0.210,
+                     cropY=[80,250],cropX=[10,325]):
+    
+    rots = np.arange(initialEstimate-5,initialEstimate+5,resolution)
+    corrCoefs = []
+    
+    for rotFactor in rots:
+        
+        cropped_im = rotate_image(image,rotFactor)[cropY[0]:cropY[1],cropX[0]:cropX[1]]
+        croppedFrame = cv2.cvtColor(cropped_im, cv2.COLOR_BGR2GRAY)
+        croppedFrame_thresh = cv2.adaptiveThreshold(croppedFrame,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+                                                    cv2.THRESH_BINARY,35,-25)
+
+
+        D_shrunk = cv2.flip(cv2.resize(np.uint8(depthMap),(0,0),fx=scaleFactor,fy=scaleFactor),1)
+        D_shrunk_cat = np.concatenate([D_shrunk,D_shrunk[:,:croppedFrame.shape[1]]],axis=1)
+        result = cv2.matchTemplate(D_shrunk_cat,croppedFrame_thresh,cv2.TM_CCORR_NORMED)
+        
+        corrCoefs.append(np.max(result))
+    return np.array(corrCoefs)
+
+def estimateRotFactors(images,plot=True,initialEstimate=0,resolution = 0.2, scaleFactor=0.210,
+                     cropY=[80,250],cropX=[10,325],depthMap=None,
+                     depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
+    if depthMap is None:
+        depthMap = loadDepthMap(depthMapFile)
+    rots = np.arange(initialEstimate-5,initialEstimate+5,resolution)
+    coeffs = np.zeros([len(images),len(rots)])
+    depthMap = loadDepthMap(depthMapFile)
+    for i, image in enumerate(images):
+        print('on image {} of {}'.format(i+1,len(images)))
+        corrCoefs = estimateRotFactor(image, depthMap, initialEstimate=initialEstimate,resolution=resolution,scaleFactor=scaleFactor,
+                          cropY=cropY,cropX=cropX)
+        coeffs[i,:] = corrCoefs
+    bestRots = np.array([float(rots[np.argmax(coeffs[i,:])]) for i in range(len(coeffs))])
+    if plot:
+        plt.figure(figsize=[2,2])
+        ax = plt.axes()
+        ax.plot(rots,coeffs.T)
+        ax.set_xlabel('Rotation (deg)')
+        ax.set_ylabel('Max. Corr. Coefficient')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        plt.show()
+        plt.close()
+    return rots, coeffs, bestRots
+
+def findTemplateMatch(image,depthMap=None, rotFactor=-1,scaleFactor=0.210,
+                      depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
+    
+    if depthMap is None:
+        depthMap = loadDepthMap(depthMapFile)
+    
+    rotated_im = cv2.cvtColor(rotate_image(image,rotFactor),cv2.COLOR_BGR2GRAY)
+    croppedFrame = rotated_im[80:250,10:326]
+    croppedFrame_thresh = cv2.adaptiveThreshold(croppedFrame,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+                                                    cv2.THRESH_BINARY,35,-25)
+
+    D_shrunk = cv2.flip(cv2.resize(np.uint8(depthMap),(0,0),fx=scaleFactor,fy=scaleFactor),1)
+    D_shrunk_cat = np.concatenate([D_shrunk,D_shrunk[:,:croppedFrame.shape[1]]],axis=1)
+    result = cv2.matchTemplate(D_shrunk_cat,croppedFrame_thresh,cv2.TM_CCORR_NORMED)
+
+    resultMax = np.where(result == np.max(result))
+    #print(np.max(result))
+    return resultMax[0][0],resultMax[1][0]
+
+def findTemplateMatches(images,depthMap=None, rotFactor=[-1],scaleFactor=0.210,
+                        depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
+    if depthMap is None:
+        depthMap = loadDepthMap(depthMapFile)
+    maxLoc = []
+    for i, image in enumerate(images):
+        if i % 50 == 0:
+            print('On image {} of {}'.format(i, len(images)))
+        if len(rotFactor) == 1:
+            maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[0],scaleFactor=scaleFactor))
+        elif len(rotFactor) == len(images):
+            maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[i],scaleFactor=scaleFactor))
+    templateMaches = np.array(maxLoc)
+    return templateMaches
+
+def findMapPositions(templateMatches,pawPositions,image,rotFactor=[-1],scaleFactor=0.210,
+                     cropY=[80,250],cropX=[10,325],
+                     depthMap=None,plot=True,depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
+    center = np.array(image.shape[:2])/2
+    
+    topLeftOfCroppedFrame = np.array([cropX[0],cropY[0]]) # X,Y position of top left of cropped frame
+    if len(rotFactor) == 1:
+        footfallPositions_rot = rotate_points(center,rotFactor[0],pawPositions) ## in the future, change rotation according to video
+    elif len(rotFactor) == len(pawPositions):
+        footfallPositions_rot = []
+        for i, point in enumerate(pawPositions):
+            footfallPositions_rot.append(rotate_points(center,rotFactor[i],pawPositions[i]))
+        footfallPositions_rot = np.array(footfallPositions_rot)
+                                             
+    footfallPositions_rot_relCrop = footfallPositions_rot - topLeftOfCroppedFrame ## adjust for location of crop
+    mapPositions = np.fliplr(templateMatches) + footfallPositions_rot_relCrop ## templateMatch is Y, X, so need to flip
+    
+    
+    if plot:
+        if depthMap is None:
+            depthMap = loadDepthMap(depthMapFile)
+        D_shrunk = cv2.flip(cv2.resize(np.uint8(depthMap),(0,0),fx=scaleFactor,fy=scaleFactor),1)
+        plt.figure(figsize=[30,4])
+        plt.imshow(D_shrunk,aspect=None,cmap='gray')
+        for ff in range(len(mapPositions)):#range(len(footfalls)):
+            if mapPositions[ff,0] < D_shrunk.shape[0]:
+                plt.plot(mapPositions[ff,0],mapPositions[ff,1],'.',ms=6,color='r')
+            else:
+                x = mapPositions[ff,0] - D_shrunk.shape[0]
+                plt.plot(x,mapPositions[ff,1],'.',ms=6,color='r')
+        plt.xticks([])
+        plt.yticks([])
+        #plt.savefig('FootfallsOnMap_AKR2.png',dpi=600,bbox_inches='tight')
+    return mapPositions
+
+def alignToMapPositions(mapPositions,depthMap=None,scaleFactor=0.210,imageSize=[120,120],
+                        depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
+    if depthMap is None:
+            depthMap = loadDepthMap(depthMapFile)
+    D_shrunk = cv2.flip(cv2.resize(np.uint8(depthMap),(0,0),fx=scaleFactor,fy=scaleFactor),1)
+    D_padded = np.copy(D_shrunk)
+    zeroPadding = np.zeros(D_padded.shape)
+    D_padded = np.concatenate([zeroPadding,D_padded,zeroPadding])
+    D_padded = np.concatenate([D_padded,D_padded,D_padded],axis=1)
+    map_positions_offset = mapPositions + np.flip(D_shrunk.shape)
+
+    alignedImages = np.zeros([imageSize[1],imageSize[0],len(mapPositions)])
+
+    halfSizeX = int(imageSize[0]/2)
+    halfSizeY = int(imageSize[1]/2)
+    for ff in range(len(mapPositions)):
+        pos = np.int32(map_positions_offset[ff])
+        alignedImages[:,:,ff] = D_padded[pos[1]-halfSizeY:pos[1]+halfSizeY,pos[0]-halfSizeX:pos[0]+halfSizeX]
+        
+    return alignedImages
+
+
+def runAlignment(firstImages,videoIndex, images, positions,
+                   depthMap=None,
+                   depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
+    """
+    Run all alignment routines, starting with estimating rotation factors from first images of each video.
+    Inputs:
+    - firstImages, list of images generated with capture of first frame from each video with openCV
+    - videoIndex, ndarray int16, video from which each event occurs
+    - images, list of images taken at time of each event, generated with capture of appropraite frame with openCV
+    - positions, ndarray,  XY points for keypoint of interest in frame
+    - depthMap, ndarray, depthMap used to make 3D-printed texture
+    - depthMapFile, path to .mat file containing 3D-printed texture information
+    Outputs:
+    - mapPositions, ndarray, XY location of keypoint at each event on scaled depthMap
+    - alignedImages, ndarray, images of depthMap centered on keypoint at time of each event
+    
+    Usage Example:
+
+    videos_ventral = glob.glob('v*.avi')
+    videos_ventral.sort(key=os.path.getmtime) ## sort by modification time -- use regular expressions if mtime is changed
+    dlcFiles_ventral = []
+    for video in videos_ventral:
+        dlcFiles_ventral.append(glob.glob(video[:-4]+'*filtered.h5'))
+    dlcFiles_ventral = np.concatenate(dlcFiles_ventral)
+
+
+    firstImages = []
+    videoIndex = []
+    for i, video in enumerate(videos_ventral):
+        cap = cv2.VideoCapture(video)
+        f, im = cap.read()
+        firstImages.append(im)
+        videoIndex.append(np.ones(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))*i)
+        cap.release()
+    deg_files = glob.glob('*predictions.csv')
+    deg_files.sort(key=lambda x: x[-35:])
+    print(deg_files)
+    ffDict = analyzeMEA.wheel.find_footfalls_DEG(deg_files)
+    footfalls = ffDict['footfalls_filtered']
+    footfallImages = []
+    for i, video in enumerate(videos_ventral):
+        print(i)
+        ffs = footfalls[videoIndex[footfalls] == i]
+        firstFrame = np.where(videoIndex == i)[0][0] ## find first frame of video
+        ffs = ffs-firstFrame
+
+        cap = cv2.VideoCapture(video)
+        
+        for ff in ffs:
+            cap.set(cv2.CAP_PROP_POS_FRAMES,ff)
+            f, im = cap.read()
+            footfallImages.append(im)
+    RFPposition = []
+    for i, file in enumerate(dlcFiles_ventral):
+        RFPposition.append(pd.read_hdf(file)[DLCmodel]['rightForepaw'])
+    RFPposition = np.concatenate(RFPposition)
+
+    ### here I am assuming the first 1945 footfalls are of interest -- change according to experiment
+    videoInd = np.int16(videoIndex[footfalls[:1945]])
+    images = footfallImages[:1945]
+    positions = RFPposition[footfalls[:1945],:-1]
+
+    mapPositions, alignedImages = runAlignment(firstImages, videoInd, images, positions)
+    
+    """
+    if depthMap is None:
+        depthMap = loadDepthMap(depthMapFile)
+    rots, coeffs, bestRots = estimateRotFactors(firstImages)
+    ffRots = bestRots[videoIndex] ## creating list of rotation factors for each image
+    templateMatches = findTemplateMatches(images, depthMap=depthMap, rotFactor=ffRots)
+    mapPositions = findMapPositions(templateMatches, positions, images[0], ffRots,depthMap=depthMap)
+    alignedImages = alignToMapPositions(mapPositions,depthMap=depthMap)
+
+    return mapPositions, alignedImages
