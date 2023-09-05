@@ -82,7 +82,128 @@ def find_footfalls_DEG(predictions):
         outDict['durations_filtered'] = durations[(durations > 15) & (stepLengths[:-1] > 8)]
     return outDict
 
+def plot_onset_offset(footfalls, footrises, durations,
+                      frameSamples_sweeps, goodsamples_sweeps, goodspikes_sweeps,
+                      minDur = 0.4, maxDur = 1.0, cameraRate=200, save=True, figsize=[6,3],
+                      savePath = None,savePSTH=True):
+    """
+    inputs:
+    - footfalls, frames of footfalls
+    - footrises, frames of footrises
+    - durations, contact duration
 
+    - frameSamples_sweeps, time of frames in neural recording samples
+    - goodsamples_sweeps, spike times in neural recording samples
+    - goodspikes_sweeps, unit identity corresponding to spike times
+
+    - minDur, minimum duration contacts to include (in s)
+    - maxDur, maximum duration contacts to include (in s)
+
+    - cameraRate, frames per second
+
+    """
+    units = np.unique(np.concatenate(goodspikes_sweeps))
+    
+    footfalls_filtered = footfalls[(durations/cameraRate >= minDur) & (durations/cameraRate <= maxDur)]
+    footrises_filtered = footrises[(durations/cameraRate >= minDur) & (durations/cameraRate <= maxDur)]
+    durations_filtered = durations[(durations/cameraRate >= minDur) & (durations/cameraRate <= maxDur)]
+
+    footfalls_sweeps = []
+    footrises_sweeps = []
+
+    cumulative_frames = 0
+    for sweep in range(len(frameSamples_sweeps)):
+        numFrames = len(frameSamples_sweeps[sweep])
+        footfalls_sweeps.append(footfalls_filtered[footfalls_filtered > cumulative_frames] - cumulative_frames)
+        footfalls_sweeps[-1] = footfalls_sweeps[-1][footfalls_sweeps[-1] < numFrames]
+        footrises_sweeps.append(footrises_filtered[footrises_filtered > cumulative_frames] - cumulative_frames)
+        footrises_sweeps[-1] = footrises_sweeps[-1][footrises_sweeps[-1] < numFrames]
+        cumulative_frames += numFrames
+    footfalls_samples = []
+    footrises_samples = []
+    for sweep in range(len(footfalls_sweeps)):
+        footfalls_samples.append(frameSamples_sweeps[sweep][footfalls_sweeps[sweep]])
+        footrises_samples.append(frameSamples_sweeps[sweep][footrises_sweeps[sweep]])
+
+        
+    ## for all sweeps
+    goodspikes_footfalls = []
+    goodsamples_footfalls = []
+
+    goodspikes_footrises = []
+    goodsamples_footrises = []
+
+    for sweep in range(len(footfalls_sweeps)):
+        for footfall in footfalls_samples[sweep]:
+            gs = goodsamples_sweeps[sweep]
+            gsp = goodspikes_sweeps[sweep]
+            lastSample = frameSamples_sweeps[sweep][-1]
+            if ((footfall > 10000) & (footfall < lastSample-20000)): ## only consider those at least 0.5 s after start of recording and 1s before end
+                goodsamples_footfalls.append(gs[(gs > footfall - 10000) & (gs < footfall +20000)] - footfall)
+                goodspikes_footfalls.append(gsp[(gs > footfall - 10000) & (gs < footfall +20000)])
+        for footrise in footrises_samples[sweep]:
+            gs = goodsamples_sweeps[sweep]
+            gsp = goodspikes_sweeps[sweep]
+            lastSample = frameSamples_sweeps[sweep][-1]
+            if ((footrise > 20000) & (footrise < lastSample-10000)): ## only consider those at least 1 s after start of recording and 0.5s before end
+                goodsamples_footrises.append(gs[(gs > footrise - 20000) & (gs < footrise +10000)] - footrise)
+                goodspikes_footrises.append(gsp[(gs > footrise - 20000) & (gs < footrise +10000)])
+    
+    
+    import analyzeMEA.rastPSTH
+    footfall_psth = analyzeMEA.rastPSTH.makeSweepPSTH(0.005,goodsamples_footfalls,
+                                                      goodspikes_footfalls,units=units,
+                                                      bs_window=[-0.05,0])
+    footrise_psth = analyzeMEA.rastPSTH.makeSweepPSTH(0.005,goodsamples_footrises,
+                                                      goodspikes_footrises,units=units,
+                                                      bs_window=[0.25,0.5])
+    footfall_psth['footfalls'] = footfalls_filtered
+    footfall_psth['durations'] = durations_filtered
+    footrise_psth['footrises'] = footrises_filtered
+    footrise_psth['durations'] = durations_filtered
+
+    footfall
+
+    if savePSTH:
+        import pickle
+        with open('onset_aligned_psth.pickle', 'wb') as handle:
+            pickle.dump(footfall_psth, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open('offset_aligned_psth.pickle', 'wb') as handle:
+            pickle.dump(footrise_psth, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    for i, unit in enumerate(units):
+        f, ax = plt.subplots(1,2,figsize=figsize)
+
+        ax[0].plot(footfall_psth['xaxis'],footfall_psth['psths_bs'][:,i])
+        ax[0].axvline(0,ls='--',color='gray')
+        ax[0].set_xlim([-0.05,0.3])
+        ax[0].set_xlabel('Time (s)')
+        ax[0].set_ylabel('Firing Rate (Hz)')
+        ax[0].spines['right'].set_visible(False)
+        ax[0].spines['top'].set_visible(False)
+        
+        ax[1].plot(footrise_psth['xaxis'],footrise_psth['psths'][:,i]-footfall_psth['psths'][90:100,i].mean(axis=0))
+        ax[1].axvline(0,ls='--',color='gray')
+        ax[1].set_xlim([-0.3,0.05])
+        ax[1].set_ylim(ax[0].set_ylim())
+        ax[1].set_xlabel('Time (s)')
+        ax[1].set_yticks([])
+        ax[1].spines['left'].set_visible(False)
+        ax[1].spines['right'].set_visible(False)
+        ax[1].spines['top'].set_visible(False)
+        ylim = [min(ax[0].set_ylim()[0],ax[1].set_ylim()[0]),max(ax[0].set_ylim()[1],ax[1].set_ylim()[1])]
+        
+        ax[0].set_ylim(ylim)
+        ax[1].set_ylim(ylim)
+        
+        plt.suptitle('Unit {}'.format(unit))
+
+        plt.show()
+        if save:
+            if savePath is None:
+                import os
+                savePath = os.getcwd()
+            plt.savefig(savePath+'\\onset_offset_unit_{}.png'.format(unit),dpi=600,bbox_inches='tight')
+        plt.close()
 
 def find_footfalls(intensity,peak_height = None,peak_distance = 0.1, frame_rate=200, plot=False):
     """
