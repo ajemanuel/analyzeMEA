@@ -190,19 +190,21 @@ def plot_onset_offset(footfalls, footrises, durations,
         ax[1].spines['left'].set_visible(False)
         ax[1].spines['right'].set_visible(False)
         ax[1].spines['top'].set_visible(False)
-        ylim = [min(ax[0].set_ylim()[0],ax[1].set_ylim()[0]),max(ax[0].set_ylim()[1],ax[1].set_ylim()[1])]
+        ylim = [min(ax[0].set_ylim()[0],ax[1].set_ylim()[0]),
+                max(ax[0].set_ylim()[1],ax[1].set_ylim()[1])]
         
         ax[0].set_ylim(ylim)
         ax[1].set_ylim(ylim)
         
         plt.suptitle('Unit {}'.format(unit))
-
-        plt.show()
         if save:
             if savePath is None:
                 import os
                 savePath = os.getcwd()
-            plt.savefig(savePath+'\\onset_offset_unit_{}.png'.format(unit),dpi=600,bbox_inches='tight')
+            plt.savefig(savePath+'\\onset_offset_unit_{}.png'.format(unit),transparent=True,
+                        dpi=600,bbox_inches='tight')
+        plt.show()
+
         plt.close()
 
 def find_footfalls(intensity,peak_height = None,peak_distance = 0.1, frame_rate=200, plot=False):
