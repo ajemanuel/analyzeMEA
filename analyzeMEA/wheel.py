@@ -459,10 +459,10 @@ def findMapPositions(templateMatches,pawPositions,image,rotFactor=[-1],scaleFact
         plt.figure(figsize=[30,4])
         plt.imshow(D_shrunk,aspect=None,cmap='gray')
         for ff in range(len(mapPositions)):#range(len(footfalls)):
-            if mapPositions[ff,0] < D_shrunk.shape[0]:
+            if mapPositions[ff,0] < D_shrunk.shape[1]:
                 plt.plot(mapPositions[ff,0],mapPositions[ff,1],'.',ms=6,color='r')
             else:
-                x = mapPositions[ff,0] - D_shrunk.shape[0]
+                x = mapPositions[ff,0] - D_shrunk.shape[1]
                 plt.plot(x,mapPositions[ff,1],'.',ms=6,color='r')
         plt.xticks([])
         plt.yticks([])
