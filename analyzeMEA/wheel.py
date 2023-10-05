@@ -76,10 +76,12 @@ def find_footfalls_DEG(predictions):
         outDict['footfalls_filtered'] = footfalls[:len(durations)][(durations > 15) & (stepLengths > 8)]
         outDict['footrises_filtered'] = footrises[:len(durations)][(durations > 15) & (stepLengths > 8)]
         outDict['durations_filtered'] = durations[(durations > 15) & (stepLengths > 8)]
+        outDict['stepLengths_filtered'] = stepLengths[(durations > 15) & (stepLengths > 8)]
     except ValueError:
         outDict['footfalls_filtered'] = footfalls[:len(durations)][(durations > 15) & (stepLengths[:-1] > 8)]
         outDict['footrises_filtered'] = footrises[:len(durations)][(durations > 15) & (stepLengths[:-1] > 8)]
         outDict['durations_filtered'] = durations[(durations > 15) & (stepLengths[:-1] > 8)]
+        outDict['stepLengths_filtered'] = stepLengths[(durations > 15) & (stepLengths[:-1] > 8)]
     return outDict
 
 def plot_onset_offset(footfalls, footrises, durations,
