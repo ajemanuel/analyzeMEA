@@ -152,11 +152,11 @@ def plot_onset_offset(footfalls, footrises, durations,
                 goodspikes_footrises.append(gsp[(gs > footrise - 20000) & (gs < footrise +10000)])
     
     
-    import analyzeMEA.rastPSTH
-    footfall_psth = analyzeMEA.rastPSTH.makeSweepPSTH(0.005,goodsamples_footfalls,
+    import rastPSTH
+    footfall_psth = rastPSTH.makeSweepPSTH(0.005,goodsamples_footfalls,
                                                       goodspikes_footfalls,units=units,
                                                       bs_window=[-0.05,0])
-    footrise_psth = analyzeMEA.rastPSTH.makeSweepPSTH(0.005,goodsamples_footrises,
+    footrise_psth = rastPSTH.makeSweepPSTH(0.005,goodsamples_footrises,
                                                       goodspikes_footrises,units=units,
                                                       bs_window=[0.25,0.5])
     footfall_psth['footfalls'] = footfalls_filtered
@@ -695,20 +695,17 @@ def runAlignment(firstImages,videoIndex, images, positions,
 
 
 
-def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFactor = 5, scaleFactor=163.16):
+def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFactor = 5, scaleFactor=109.36):
     ## crop, downsample, and scale aligned images to only conider area around paw
     # assuming paw is centered in image (60,60)
 
-    origCenter = alignedImages.shape[:-1]/2
-
-
+    origCenter = np.array(alignedImages.shape[:-1])/2
     alignedImages_cropped = alignedImages[int(origCenter[0]-dim1_length/2):int(origCenter[0]+dim1_length/2),
                                           int(origCenter[1]-dim2_length/2):int(origCenter[1]+dim2_length/2),:]
 
     ## downsample so that we are not fitting too many parameters
 
     croppedShape = alignedImages_cropped.shape
-
     alignedImages_c_ds = np.reshape(alignedImages_cropped,(int(croppedShape[0]/dsFactor),dsFactor,int(croppedShape[1]/dsFactor),dsFactor,alignedImages_cropped.shape[-1])).mean(1).mean(2)
     
     
@@ -718,10 +715,10 @@ def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFacto
 
     return alignedImages_c_ds
 
-def locationGLM(dsImages,responses,plot=True, imageInd=None):
+def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None):
     """
     Use GLM to generate receptive fields.
-    Predict number of spikes by weighting number of bumps in each pixel of the downsamples images, which contain the stimulus aligned to the center of the paw.
+    Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
 
     Inputs:
     - dsImages, ndarray of downsamples images imDim1 x imDim2 x numEvents
@@ -734,7 +731,7 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None):
     from sklearn.model_selection import train_test_split, GroupShuffleSplit
     from sklearn.preprocessing import SplineTransformer, QuantileTransformer
     import tensorflow as tf
-    import glm_class as glm
+    from . import glm_class as glm
     
     if imageInd is not None:
         dsImages = dsImages[:,:,imageInd] ## subselect images included in responses
@@ -774,12 +771,13 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None):
         clim = model_cv.selected_w.max()/2
         for neuron in range(responses.shape[1]):
             plt.figure(figsize=[3,2])
-            
-            plt.imshow(cv2.rotate(model_cv.selected_w[:int(sh[0]*sh[1]),neuron].reshape(sh[0],sh[1]),cv2.ROTATE_90_CLOCKWISE),cmap='bwr',clim=[-clim,clim])
-        #     try:
-        #         plt.title('Neuron {0}, w19 = {1: 0.4f}, w0 = {2: 0.3f}'.format(neuron,model_cv.selected_w[18,neuron],model_cv.selected_w0[neuron][0]))
-        #     except:
-            plt.title(r'Neuron {0}, $\beta_0$ = {1: 0.3f}'.format(neuron,model_cv.selected_w0[neuron][0]))
+            weightImage = model_cv.selected_w[:int(sh[0]*sh[1]),neuron].reshape(sh[0],sh[1])
+            imageMax = np.max(np.abs(weightImage))
+            plt.imshow(cv2.rotate(weightImage,cv2.ROTATE_90_CLOCKWISE),cmap='bwr',clim=[-imageMax,imageMax])
+            if units is None:
+                plt.title(r'Neuron {0}, $\beta_0$ = {1: 0.3f}'.format(neuron,model_cv.selected_w0[neuron][0]))
+            else:
+                plt.title(r'Neuron {0}, $\beta_0$ = {1: 0.3f}'.format(units[neuron],model_cv.selected_w0[neuron][0]))
             cb = plt.colorbar()
             cb.set_label(r'$\beta$')
             plt.xticks([])
