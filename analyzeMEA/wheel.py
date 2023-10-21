@@ -5,7 +5,7 @@ import h5py
 import pandas as pd
 import time
 from scipy.signal import savgol_filter, find_peaks
-
+import sys
 
 
 def find_footfalls_DEG(predictions):
@@ -152,11 +152,11 @@ def plot_onset_offset(footfalls, footrises, durations,
                 goodspikes_footrises.append(gsp[(gs > footrise - 20000) & (gs < footrise +10000)])
     
     
-    import analyzeMEA.rastPSTH
-    footfall_psth = analyzeMEA.rastPSTH.makeSweepPSTH(0.005,goodsamples_footfalls,
+    import rastPSTH
+    footfall_psth = rastPSTH.makeSweepPSTH(0.005,goodsamples_footfalls,
                                                       goodspikes_footfalls,units=units,
                                                       bs_window=[-0.05,0])
-    footrise_psth = analyzeMEA.rastPSTH.makeSweepPSTH(0.005,goodsamples_footrises,
+    footrise_psth = rastPSTH.makeSweepPSTH(0.005,goodsamples_footrises,
                                                       goodspikes_footrises,units=units,
                                                       bs_window=[0.25,0.5])
     footfall_psth['footfalls'] = footfalls_filtered
@@ -612,7 +612,7 @@ def alignToMapPositions(mapPositions,depthMap=None,scaleFactor=0.210,imageSize=[
     D_padded = np.concatenate([D_padded,D_padded,D_padded],axis=1)
     map_positions_offset = mapPositions + np.flip(D_shrunk.shape)
 
-    alignedImages = np.zeros([imageSize[1],imageSize[0],len(mapPositions)])
+    alignedImages = np.zeros([imageSize[1],imageSize[0],len(mapPositions)],dtype=int)
 
     halfSizeX = int(imageSize[0]/2)
     halfSizeY = int(imageSize[1]/2)
@@ -699,3 +699,96 @@ def runAlignment(firstImages,videoIndex, images, positions,
     alignedImages = alignToMapPositions(mapPositions,depthMap=depthMap)
 
     return mapPositions, alignedImages
+
+
+
+def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFactor = 5, scaleFactor=109.36):
+    ## crop, downsample, and scale aligned images to only conider area around paw
+    # assuming paw is centered in image (60,60)
+
+    origCenter = np.array(alignedImages.shape[:-1])/2
+    alignedImages_cropped = alignedImages[int(origCenter[0]-dim1_length/2):int(origCenter[0]+dim1_length/2),
+                                          int(origCenter[1]-dim2_length/2):int(origCenter[1]+dim2_length/2),:]
+
+    ## downsample so that we are not fitting too many parameters
+
+    croppedShape = alignedImages_cropped.shape
+    alignedImages_c_ds = np.reshape(alignedImages_cropped,(int(croppedShape[0]/dsFactor),dsFactor,int(croppedShape[1]/dsFactor),dsFactor,alignedImages_cropped.shape[-1])).mean(1).mean(2)
+    
+    
+    
+    # scale so that each value represents the number of bumps in pixel
+    alignedImages_c_ds = alignedImages_c_ds/scaleFactor
+
+    return alignedImages_c_ds
+
+def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None):
+    """
+    Use GLM to generate receptive fields.
+    Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
+
+    Inputs:
+    - dsImages, ndarray of downsamples images imDim1 x imDim2 x numEvents
+    - responses, ndarray number of spikes in response window; numEvents X numUnits
+
+
+
+    """
+
+    from sklearn.model_selection import train_test_split, GroupShuffleSplit
+    from sklearn.preprocessing import SplineTransformer, QuantileTransformer
+    import tensorflow as tf
+    from . import glm_class as glm
+    
+    if imageInd is not None:
+        dsImages = dsImages[:,:,imageInd] ## subselect images included in responses
+
+    sh = dsImages.shape
+
+    X = dsImages.reshape([sh[0]*sh[1],-1]).T
+    Y = responses
+
+    n_samples = X.shape[0]
+    group_id = np.arange(n_samples)
+    gss = GroupShuffleSplit(n_splits=1,train_size=0.85, random_state=42)
+    train_idx, test_idx = next(gss.split(X,Y,group_id))
+
+    # Split data into train and test set
+    X_train = X[train_idx,:]
+    Y_train = Y[train_idx,:]
+    X_test = X[test_idx,:]
+    Y_test = Y[test_idx,:]
+    trial_id_train = group_id[train_idx] # extract trial_id for training data, which is used in CV splits later during fitting  
+
+    tf.keras.backend.clear_session()
+
+    # Initialize GLM_CV (here we're only specifying key input arguments; others are left as default values; see documentation for details)
+    model_cv = glm.GLM_CV(n_folds = 5, auto_split = True, 
+                      activation = 'exp', loss_type = 'poisson', 
+                      regularization = 'elastic_net',l1_ratio=0.8,lambda_series = 10.0 ** np.linspace(-1, -7, 11), 
+                      optimizer = 'adam', learning_rate = 1e-3)
+    
+    model_cv.fit(X_train, Y_train, group_idx = trial_id_train)
+
+    model_cv.select_model(se_fraction=0., min_lambda=0., make_fig=True)
+    # Evaluate model performance on test data
+    frac_dev_expl, dev_model, dev_null, dev_expl = model_cv.evaluate(X_test, Y_test, make_fig = True)
+
+    if plot:
+        clim = model_cv.selected_w.max()/2
+        for neuron in range(responses.shape[1]):
+            plt.figure(figsize=[3,2])
+            weightImage = model_cv.selected_w[:int(sh[0]*sh[1]),neuron].reshape(sh[0],sh[1])
+            imageMax = np.max(np.abs(weightImage))
+            plt.imshow(cv2.rotate(weightImage,cv2.ROTATE_90_CLOCKWISE),cmap='bwr',clim=[-imageMax,imageMax])
+            if units is None:
+                plt.title(r'Neuron {0}, $\beta_0$ = {1: 0.3f}'.format(neuron,model_cv.selected_w0[neuron][0]))
+            else:
+                plt.title(r'Neuron {0}, $\beta_0$ = {1: 0.3f}'.format(units[neuron],model_cv.selected_w0[neuron][0]))
+            cb = plt.colorbar()
+            cb.set_label(r'$\beta$')
+            plt.xticks([])
+            plt.yticks([])
+            plt.show()
+            plt.close()
+    return model_cv
