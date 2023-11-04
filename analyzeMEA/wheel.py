@@ -357,14 +357,21 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True):
         theta = np.arctan2(meanVector[:,1],meanVector[:,0])
         thetaShuffled = np.arctan2(meanShuffleVectors[:,:,1],meanShuffleVectors[:,:,0])
         
+        
+        
         for unit in range(len(units)):
             plt.figure()
-            plt.polar([0,theta[unit]],[0,distance[unit]],color='r',label='actual')
-            plt.polar(thetaShuffled[unit,:],shuffleDistances[unit,:],'.',color='gray',label='shuffle',alpha=0.2)
+            ax = plt.axes(projection='polar')
+            ax.plot(thetaShuffled[unit,:],shuffleDistances[unit,:],'.',color='gray',label='shuffle',alpha=0.1)
+            ax.plot([0,theta[unit]],[0,distance[unit]],color='r',label='actual')
+            dist95 = np.sort(shuffleDistances[unit,:])[int(numShuffles * 0.95)]
+            ax.plot(np.linspace(0, 2*np.pi, 100), np.ones(100)*dist95, color='k', linestyle='--',lw=1.5,label='95% CI')
+            ax.set_xticklabels([])
             if units[unit] in OSunits:
-                plt.title('Unit {}, p = {}'.format(units[unit],pvalues[unit]),color='r')
+                ax.set_title('Unit {}, p = {}'.format(units[unit],pvalues[unit]),color='r')
             else:
-                plt.title('Unit {}, p = {}'.format(units[unit],pvalues[unit]),color='k')
+                ax.set_title('Unit {}, p = {}'.format(units[unit],pvalues[unit]),color='k')
+            ax.legend()
             plt.show()
             plt.close()
 
