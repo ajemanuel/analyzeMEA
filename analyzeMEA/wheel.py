@@ -363,14 +363,16 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True):
             plt.figure()
             ax = plt.axes(projection='polar')
             ax.plot(thetaShuffled[unit,:],shuffleDistances[unit,:],'.',color='gray',label='shuffle',alpha=0.1)
-            ax.plot([0,theta[unit]],[0,distance[unit]],color='r',label='actual')
+            ax.plot([0,theta[unit]],[0,distance[unit]],color='r',label='actual',lw=1.5)
             dist95 = np.sort(shuffleDistances[unit,:])[int(numShuffles * 0.95)]
             ax.plot(np.linspace(0, 2*np.pi, 100), np.ones(100)*dist95, color='k', linestyle='--',lw=1.5,label='95% CI')
             ax.set_xticklabels([])
+            ylim = ax.get_ylim()
+            ax.set_yticks([ylim[1]])
             if units[unit] in OSunits:
-                ax.set_title('Unit {}, p = {}'.format(units[unit],pvalues[unit]),color='r')
+                ax.set_title('Neuron {0}, p = {1: 0.4f}'.format(units[unit],pvalues[unit]),color='r')
             else:
-                ax.set_title('Unit {}, p = {}'.format(units[unit],pvalues[unit]),color='k')
+                ax.set_title('Neuron {0}, p = {1: 0.4f}'.format(units[unit],pvalues[unit]),color='k')
             ax.legend()
             plt.show()
             plt.close()
