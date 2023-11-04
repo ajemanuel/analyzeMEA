@@ -152,7 +152,7 @@ def plot_onset_offset(footfalls, footrises, durations,
                 goodspikes_footrises.append(gsp[(gs > footrise - 20000) & (gs < footrise +10000)])
     
     
-    import rastPSTH
+    from . import rastPSTH
     footfall_psth = rastPSTH.makeSweepPSTH(0.005,goodsamples_footfalls,
                                                       goodspikes_footfalls,units=units,
                                                       bs_window=[-0.05,0])
