@@ -280,7 +280,7 @@ def classify_gratings_manually(footfallImages,savename = 'grating_classification
         np.save(savename,np.int32(grating_classification))
 
 
-def permuteOS(trialGratings, units, numShuffles=10000, plot=True):
+def permuteOS(trialGratings, units, numShuffles=10000, plot=True, saveFig=True):
     
 
     ## set random seed and create generator
@@ -369,12 +369,14 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True):
             ax.set_xticks(np.arange(0,2.1*np.pi,np.pi/2)) #radians
             ax.set_xticklabels([])
             ylim = ax.get_ylim()
-            ax.set_yticks([ylim[1]])
+            ax.set_yticks([ylim[1]/4,ylim[1]/2,ylim[1]*(3/4),ylim[1]])
             if units[unit] in OSunits:
                 ax.set_title('Neuron {0}, p = {1: 0.4f}'.format(units[unit],pvalues[unit]),color='r')
             else:
                 ax.set_title('Neuron {0}, p = {1: 0.4f}'.format(units[unit],pvalues[unit]),color='k')
             ax.legend()
+            if saveFig:
+                plt.savefig('PolarPlot_Neuron{0}.pdf'.format(units[unit]),dpi=600,bbox_inches='tight',transparent=True)    
             plt.show()
             plt.close()
 
