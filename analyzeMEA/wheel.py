@@ -7,6 +7,13 @@ import time
 from scipy.signal import savgol_filter, find_peaks
 import sys
 
+import matplotlib
+
+matplotlib.rcParams['font.size'] = 12
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['font.sans-serif'] = 'Arial'
+
+
 
 def find_footfalls_DEG(predictions):
     """
