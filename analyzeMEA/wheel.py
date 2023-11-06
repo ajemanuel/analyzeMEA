@@ -366,6 +366,7 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True):
             ax.plot([0,theta[unit]],[0,distance[unit]],color='r',label='actual',lw=1.5)
             dist95 = np.sort(shuffleDistances[unit,:])[int(numShuffles * 0.95)]
             ax.plot(np.linspace(0, 2*np.pi, 100), np.ones(100)*dist95, color='k', linestyle='--',lw=1.5,label='95% CI')
+            ax.set_xticks(np.arange(0,2.1*np.pi,np.pi/2)) #radians
             ax.set_xticklabels([])
             ylim = ax.get_ylim()
             ax.set_yticks([ylim[1]])
@@ -724,7 +725,7 @@ def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFacto
 
     return alignedImages_c_ds
 
-def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None):
+def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=True):
     """
     Use GLM to generate receptive fields.
     Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
@@ -782,7 +783,7 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None):
             plt.figure(figsize=[3,2])
             weightImage = model_cv.selected_w[:int(sh[0]*sh[1]),neuron].reshape(sh[0],sh[1])
             imageMax = np.max(np.abs(weightImage))
-            plt.imshow(cv2.rotate(weightImage,cv2.ROTATE_90_CLOCKWISE),cmap='bwr',clim=[-imageMax,imageMax])
+            plt.imshow(cv2.rotate(weightImage,cv2.ROTATE_90_CLOCKWISE),cmap='RdBu_r',clim=[-imageMax,imageMax])
             if units is None:
                 plt.title(r'Neuron {0}, $\beta_0$ = {1: 0.3f}'.format(neuron,model_cv.selected_w0[neuron][0]))
             else:
@@ -791,6 +792,8 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None):
             cb.set_label(r'$\beta$')
             plt.xticks([])
             plt.yticks([])
+            if save:
+                plt.savefig('GLM_RF_Neuron{}.pdf'.format(neuron),bbox_inches='tight',dpi=600,transparent=True)
             plt.show()
             plt.close()
     return model_cv
