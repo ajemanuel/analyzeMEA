@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import cv2
 import h5py
 import pandas as pd
+import time
 from scipy.signal import savgol_filter, find_peaks
 
 
@@ -27,12 +28,14 @@ def find_footfalls(intensity,peak_height = None,peak_distance = 0.1, frame_rate=
     if peak_height is None:
         peak_height = [2*np.std(diff_smoothed),np.max(diff_smoothed)+1]
     footfalls = find_peaks(diff_smoothed,height=peak_height,distance=peak_distance)[0]
+    footrises = find_peaks(-diff_smoothed,height=peak_height,distance=peak_distance)[0]
 
     if plot:
         plt.figure(figsize=[15,3])
         plt.plot(diff_smoothed)
         #plt.plot(LFPintensity)
         plt.plot(footfalls,np.ones(len(footfalls))*peak_height[1],'.',label='Footfalls')
+        plt.plot(footrises,-np.ones(len(footrises))*peak_height[1],'.',label='Footrises')
         #plt.xlim([150000,153000])
         plt.ylabel('Derivative of Pixel Intensity of Paw')
         plt.xlabel('Frame ({} Hz sampling)'.format(frame_rate))
@@ -41,11 +44,38 @@ def find_footfalls(intensity,peak_height = None,peak_distance = 0.1, frame_rate=
         plt.show()
         plt.close()
 
-    return footfalls
+    return footfalls, footrises
 
 
 
+def classify_gratings_manually(footfallImages,savename = 'grating_classification.npy', pawPositions=None):
+    """
+    Prompt for manual classification of gratings. Loads file at savename to continue
 
+    Inputs:
+    - footfallImages, list: images to be classsified
+    - savename, string: .npy filename for saving classifications
+    """
+
+    try:
+        grating_classification = np.load(savename)
+        grating_classification = [n for n in grating_classification]
+    except:
+        print('No gratings file found, starting new one')
+        grating_classification = []
+
+    numFrames = len(footfallImages[len(grating_classification):])
+    prevFrames = len(grating_classification)
+    for i, im in enumerate(footfallImages[len(grating_classification):]):
+        plt.imshow(im)
+        if pawPositions is not None:
+            plt.plot(pawPositions[prevFrames+i,0],pawPositions[prevFrames+i,1],'.',color='r')
+        plt.show()
+        plt.close()
+        time.sleep(0.1)
+        temp = input('Enter gratings direction for frame {} of {}\n1 = left diag, 2 = horizontal, 3 = right diag, 4 = vertical, 0 = other\nrelative to scorer, not mouse'.format(i, numFrames)) ## these are relative to scorer (not mouse)
+        grating_classification.append(temp)
+        np.save(savename,np.int32(grating_classification))
 
 
 
