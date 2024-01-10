@@ -151,7 +151,7 @@ def importJRCLUST(filepath, annotation='single', depth=250):
 
     return outDict
 
-def importKS(folderpath,depth=250,sampleRate=20000):
+def importKS(folderpath,depth=250,sampleRate=20000, probe='poly2'):
     """
     Imports the features of the kilosort output I use most.
 
@@ -186,8 +186,31 @@ def importKS(folderpath,depth=250,sampleRate=20000):
     outDict['goodSamples'] = np.int64(spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1))
     outDict['goodTimes'] = outDict['goodSamples']/sampleRate
     outDict['sampleRate'] = sampleRate
-    outDict['depth'] = clusterInfo['depth']
+    if probe == 'poly2':
+        outDict['depths'] = clusterInfo['depth'] - 775 - depth
+    else:
+        outDict['depths'] = clusterInfo['depth'] - depth
     outDict['depthIndices'] = np.argsort(clusterInfo['depth']) ## to get an index to use for sorting by depth
+
+
+    ## calculating layer
+    layer_demarcations = -np.array([119,416.5,535.5,952,1300]) ## for S1 recordings; from post-hoc anatomy with DAPI/layer V labeled + DiI, appears to match well with depth of Layer IV optotagged units
+    layers = []
+    for d in outDict['depths']:
+        if d > layer_demarcations[0]:
+            layers.append(1)
+        elif (d > layer_demarcations[1]) & (d < layer_demarcations[0]):
+            layers.append(2)
+        elif (d > layer_demarcations[2]) & (d < layer_demarcations[1]):
+            layers.append(4)
+        elif (d > layer_demarcations[3]) & (d < layer_demarcations[2]):
+            layers.append(5)
+        elif (d > layer_demarcations[4]) & (d < layer_demarcations[3]):
+            layers.append(6)
+        else:
+            layers.append(10) ## not cortical
+    layers = np.array(layers)
+    outDict['layers'] = layers
 
     return outDict
 
