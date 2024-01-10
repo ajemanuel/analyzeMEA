@@ -5,7 +5,7 @@ import glob
 import os
 import pandas as pd
 
-def importJRCLUST(filepath, annotation='unsorted', depth=250):
+def importJRCLUST(filepath, annotation='single', depth=250):
     """
     Imports the features of the JrClust output I use most.
 
@@ -165,20 +165,19 @@ def importKS(folderpath,depth=250,sampleRate=20000, probe='poly2'):
         goodSamples - ndarray of spike samples (time of spike)
         goodTimes - ndarray of spike times (in s)
         sampleRate - int sample rate in Hz (same as input)
+        depths - depth of site (taking into account depth of probe)
+        depthIndices - index of good units in the order of their depth
+        layers - the cortical layer to which the depth corresponds
+        units - list of all units included in goodSpikes
+
         not yet implemented:
             unitPosXY - tuple of two ndarrays, (X center of mass, Y center of mass)
-            depthIndices - index of good units in the order of their depth
-            depths - depth of site (taking into account depth of probe)
-            layers - the cortical layer to which the depth corresponds
-            units - list of all units included in goodSpikes
     """
     
     clusterInfo = pd.read_csv(folderpath+'\\cluster_info.tsv',sep='\t')
     spikeClusters = np.load(folderpath+'\\spike_clusters.npy')
     spikeTimes = np.load(folderpath+'\\spike_times.npy')
 
-    good_ids = np.array(clusterInfo['cluster_id'][clusterInfo['KSLabel'] == 'good'])
-    good_index =np.array([n in good_ids for n in spikeClusters])
 
     try:
         good_ids = np.array(clusterInfo['id'][clusterInfo['group'] == 'good'])
@@ -191,6 +190,7 @@ def importKS(folderpath,depth=250,sampleRate=20000, probe='poly2'):
     outDict['goodSamples'] = np.int64(spikeTimes[np.array([n in good_ids for n in spikeClusters])].reshape(-1))
     outDict['goodTimes'] = outDict['goodSamples']/sampleRate
     outDict['sampleRate'] = sampleRate
+    outDict['units'] = np.unique(outDict['goodSpikes'])
     if probe == 'poly2':
         outDict['depths'] = clusterInfo['depth'] - 775 - depth
     else:
