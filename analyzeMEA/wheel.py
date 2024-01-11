@@ -94,7 +94,7 @@ def find_footfalls_DEG(predictions):
 def plot_onset_offset(footfalls, footrises, durations,
                       frameSamples_sweeps, goodsamples_sweeps, goodspikes_sweeps,
                       minDur = 0.4, maxDur = 1.0, cameraRate=200, save=True, figsize=[6,3],
-                      savePath = None,savePSTH=True, units=None):
+                      savePath = None,savePSTH=True, units=None, layers=None):
     """
     inputs:
     - footfalls, frames of footfalls
@@ -125,7 +125,8 @@ def plot_onset_offset(footfalls, footrises, durations,
         frameSamples_sweeps.append(np.where(ventralTrigger_sweeps[i][1:] > ventralTrigger_sweeps[i][:-1])[0])
         
     analyzeMEA.wheel.plot_onset_offset(footfalls,footrises,durations,frameSamples_sweeps,
-                                   goodsamples_sweeps,goodspikes_sweeps, units=spikeDict['units'][spikeDict['depthIndices']])
+                                   goodsamples_sweeps,goodspikes_sweeps, units=spikeDict['units'][spikeDict['depthIndices']],
+                                   layers=spikeDict['layers'][spikeDict['depthIndices']])
 
     """
     
@@ -189,8 +190,9 @@ def plot_onset_offset(footfalls, footrises, durations,
     footfall_psth['durations'] = durations_filtered
     footrise_psth['footrises'] = footrises_filtered
     footrise_psth['durations'] = durations_filtered
-
-    footfall
+    if layers is not None:
+        footfall_psth['layers'] = layers
+        footrise_psth['layers'] = layers
 
     if savePSTH:
         import pickle
