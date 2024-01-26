@@ -192,10 +192,10 @@ def importKS(folderpath,depth=250,sampleRate=20000, probe='poly2'):
     outDict['sampleRate'] = sampleRate
     outDict['units'] = np.unique(outDict['goodSpikes'])
     if probe == 'poly2':
-        outDict['depths'] = clusterInfo['depth'] - 775 - depth
+        outDict['depths'] = np.array(clusterInfo['depth'][clusterInfo['group'] == 'good'] - 775 - depth)
     else:
-        outDict['depths'] = clusterInfo['depth'] - depth
-    outDict['depthIndices'] = np.argsort(clusterInfo['depth']) ## to get an index to use for sorting by depth
+        outDict['depths'] = np.array(clusterInfo['depth'][clusterInfo['group'] == 'good'] - depth)
+    outDict['depthIndices'] = np.argsort(outDict['depths']) ## to get an index to use for sorting by depth
 
 
     ## calculating layer

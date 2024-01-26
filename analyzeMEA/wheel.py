@@ -94,7 +94,7 @@ def find_footfalls_DEG(predictions):
 def plot_onset_offset(footfalls, footrises, durations,
                       frameSamples_sweeps, goodsamples_sweeps, goodspikes_sweeps,
                       minDur = 0.4, maxDur = 1.0, cameraRate=200, save=True, figsize=[6,3],
-                      savePath = None,savePSTH=True):
+                      savePath = None,savePSTH=True, units=None, layers=None):
     """
     inputs:
     - footfalls, frames of footfalls
@@ -110,8 +110,28 @@ def plot_onset_offset(footfalls, footrises, durations,
 
     - cameraRate, frames per second
 
+    Usage Example:
+    
+    goodsamples_sweeps = []
+    goodspikes_sweeps = []
+    ventralTrigger_sweeps = []
+    frameSamples_sweeps = []
+    for i in range(len(matlab_starts)):
+        print(intan_starts[i],matlab_starts[i])
+        spikeIndex = (goodSamples > intan_starts[i]) & (goodSamples < intan_ends[i])
+        goodsamples_sweeps.append(goodSamples[spikeIndex] - intan_starts[i])
+        goodspikes_sweeps.append(goodSpikes[spikeIndex])
+        ventralTrigger_sweeps.append(matVentralTrigger[matlab_starts[i]:matlab_ends[i]])
+        frameSamples_sweeps.append(np.where(ventralTrigger_sweeps[i][1:] > ventralTrigger_sweeps[i][:-1])[0])
+        
+    analyzeMEA.wheel.plot_onset_offset(footfalls,footrises,durations,frameSamples_sweeps,
+                                   goodsamples_sweeps,goodspikes_sweeps, units=spikeDict['units'][spikeDict['depthIndices']],
+                                   layers=spikeDict['layers'][spikeDict['depthIndices']])
+
     """
-    units = np.unique(np.concatenate(goodspikes_sweeps))
+    
+    if units is None:
+        units = np.unique(np.concatenate(goodspikes_sweeps))
     
     footfalls_filtered = footfalls[(durations/cameraRate >= minDur) & (durations/cameraRate <= maxDur)]
     footrises_filtered = footrises[(durations/cameraRate >= minDur) & (durations/cameraRate <= maxDur)]
@@ -170,8 +190,9 @@ def plot_onset_offset(footfalls, footrises, durations,
     footfall_psth['durations'] = durations_filtered
     footrise_psth['footrises'] = footrises_filtered
     footrise_psth['durations'] = durations_filtered
-
-    footfall
+    if layers is not None:
+        footfall_psth['layers'] = layers
+        footrise_psth['layers'] = layers
 
     if savePSTH:
         import pickle
