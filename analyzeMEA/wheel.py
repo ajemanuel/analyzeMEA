@@ -383,7 +383,7 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True, saveFig=True):
                 ax.set_title('Neuron {0}, p = {1: 0.4f}'.format(units[unit],pvalues[unit]),color='k')
             ax.legend()
             if saveFig:
-                plt.savefig('PolarPlot_Neuron{0}.pdf'.format(units[unit]),dpi=600,bbox_inches='tight',transparent=True)    
+                plt.savefig('PolarPlot_Neuron{0}.png'.format(units[unit]),dpi=900,bbox_inches='tight',transparent=True)    
             plt.show()
             plt.close()
 
