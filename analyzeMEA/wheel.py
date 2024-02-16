@@ -142,7 +142,9 @@ def plot_onset_offset(footfalls, footrises, durations,
 
     cumulative_frames = 0
     for sweep in range(len(frameSamples_sweeps)):
+        
         numFrames = len(frameSamples_sweeps[sweep])
+        print('On sweep {}, {} frames'.format(sweep, numFrames))
         footfalls_sweeps.append(footfalls_filtered[footfalls_filtered > cumulative_frames] - cumulative_frames)
         footfalls_sweeps[-1] = footfalls_sweeps[-1][footfalls_sweeps[-1] < numFrames]
         footrises_sweeps.append(footrises_filtered[footrises_filtered > cumulative_frames] - cumulative_frames)
