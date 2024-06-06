@@ -143,7 +143,9 @@ def plot_onset_offset(footfalls, footrises, durations,
 
     cumulative_frames = 0
     for sweep in range(len(frameSamples_sweeps)):
+        
         numFrames = len(frameSamples_sweeps[sweep])
+        print('On sweep {}, {} frames'.format(sweep, numFrames))
         footfalls_sweeps.append(footfalls_filtered[footfalls_filtered > cumulative_frames] - cumulative_frames)
         footfalls_sweeps[-1] = footfalls_sweeps[-1][footfalls_sweeps[-1] < numFrames]
         footrises_sweeps.append(footrises_filtered[footrises_filtered > cumulative_frames] - cumulative_frames)
@@ -405,7 +407,7 @@ def permuteOS(trialGratings, units, numShuffles=10000, plot=True, saveFig=True):
                 ax.set_title('Neuron {0}, p = {1: 0.4f}'.format(units[unit],pvalues[unit]),color='k')
             ax.legend()
             if saveFig:
-                plt.savefig('PolarPlot_Neuron{0}.pdf'.format(units[unit]),dpi=600,bbox_inches='tight',transparent=True)    
+                plt.savefig('PolarPlot_Neuron{0}.png'.format(units[unit]),dpi=900,bbox_inches='tight',transparent=True)    
             plt.show()
             plt.close()
 
