@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import cv2
 import h5py
 import pandas as pd
+import pickle
 import time
 from scipy.signal import savgol_filter, find_peaks
 import sys
@@ -826,4 +827,17 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=Tru
                 plt.savefig('GLM_RF_Neuron{}.pdf'.format(neuron),bbox_inches='tight',dpi=600,transparent=True)
             plt.show()
             plt.close()
+    if save:
+        outDict = {}
+        outDict['selected_w'] = model_cv.selected_w
+        outDict['selected_w0'] = model_cv.selected_w0
+        outDict['selected_lambda'] = model_cv.selected_lambda
+        outDict['selected_frac_dev_expl_cv'] = model_cv.selected_frac_dev_expl_cv
+        outDict['activation'] = model_cv.activation
+        outDict['l1_ratio'] = model_cv.l1_ratio
+        outDict['units'] = units
+        with open('GLM_RF_results.pickle','wb') as handle:
+            pickle.dump(outDict,handle,protocol=pickle.HIGHEST_PROTOCOL)
+
+        
     return model_cv
