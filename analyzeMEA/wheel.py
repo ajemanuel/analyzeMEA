@@ -759,7 +759,7 @@ def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFacto
 
     return alignedImages_c_ds
 
-def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None, units=None,save=True, standardizePredictors=True):
+def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None, units=None,save=True, standardizePredictors=False):
     """
     Use GLM to generate receptive fields.
     Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
