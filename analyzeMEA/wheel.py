@@ -758,7 +758,7 @@ def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFacto
 
     return alignedImages_c_ds
 
-def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=True):
+def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None, units=None,save=True):
     """
     Use GLM to generate receptive fields.
     Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
@@ -766,7 +766,7 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=Tru
     Inputs:
     - dsImages, ndarray of downsamples images imDim1 x imDim2 x numEvents
     - responses, ndarray number of spikes in response window; numEvents X numUnits
-
+    - additionalPredictors, ndarray of additional predictors; numEvents X numPredictors
 
 
     """
@@ -782,6 +782,8 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=Tru
     sh = dsImages.shape
 
     X = dsImages.reshape([sh[0]*sh[1],-1]).T
+    if additionalPredictors is not None:
+        X = np.concatenate([X,additionalPredictors],axis=1)
     Y = responses
 
     n_samples = X.shape[0]
@@ -830,6 +832,10 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=Tru
             plt.show()
             plt.close()
     if save:
+        ### get current date and time
+        import datetime
+        timestamp = datetime.datetime.now()
+        
         outDict = {}
         outDict['selected_w'] = model_cv.selected_w
         outDict['selected_w0'] = model_cv.selected_w0
@@ -838,7 +844,12 @@ def locationGLM(dsImages,responses,plot=True, imageInd=None, units=None,save=Tru
         outDict['activation'] = model_cv.activation
         outDict['l1_ratio'] = model_cv.l1_ratio
         outDict['units'] = units
-        with open('GLM_RF_results.pickle','wb') as handle:
+        outDict['X'] = X
+        outDict['Y'] = Y
+        outDict['additionalPredictors'] = additionalPredictors
+        
+
+        with open('GLM_RF_results_{}.pickle'.format(timestamp.strftime('%Y%m%d_%H%M%S')),'wb') as handle:
             pickle.dump(outDict,handle,protocol=pickle.HIGHEST_PROTOCOL)
 
         
