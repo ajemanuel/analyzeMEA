@@ -6,6 +6,7 @@ import pandas as pd
 import pickle
 import time
 from scipy.signal import savgol_filter, find_peaks
+import scipy.stats
 import sys
 
 import matplotlib
@@ -758,7 +759,7 @@ def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFacto
 
     return alignedImages_c_ds
 
-def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None, units=None,save=True):
+def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None, units=None,save=True, standardizePredictors=True):
     """
     Use GLM to generate receptive fields.
     Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
@@ -784,6 +785,8 @@ def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageIn
     X = dsImages.reshape([sh[0]*sh[1],-1]).T
     if additionalPredictors is not None:
         X = np.concatenate([X,additionalPredictors],axis=1)
+    if standardizePredictors:
+        X = scipy.stats.zscore(X,axis=0,nan_policy='omit')
     Y = responses
 
     n_samples = X.shape[0]
