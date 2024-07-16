@@ -594,12 +594,16 @@ def findTemplateMatches(images,depthMap=None, rotFactor=[-1],scaleFactor=0.210,
         depthMap = loadDepthMap(depthMapFile)
     maxLoc = []
     for i, image in enumerate(images):
-        if i % 50 == 0:
-            print('On image {} of {}'.format(i, len(images)))
-        if len(rotFactor) == 1:
-            maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[0],scaleFactor=scaleFactor))
-        elif len(rotFactor) == len(images):
-            maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[i],scaleFactor=scaleFactor))
+        try:
+            if i % 50 == 0:
+                print('On image {} of {}'.format(i, len(images)))
+            if len(rotFactor) == 1:
+                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[0],scaleFactor=scaleFactor))
+            elif len(rotFactor) == len(images):
+                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[i],scaleFactor=scaleFactor))
+        except AttributeError:
+            print('Err on image {}'.format(i))
+            maxLoc.append(np.nan)
     templateMaches = np.array(maxLoc)
     return templateMaches
 
