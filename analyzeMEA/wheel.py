@@ -806,7 +806,7 @@ def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageIn
     # Initialize GLM_CV (here we're only specifying key input arguments; others are left as default values; see documentation for details)
     model_cv = glm.GLM_CV(n_folds = 5, auto_split = True, 
                       activation = 'exp', loss_type = 'poisson', 
-                      regularization = 'elastic_net',l1_ratio=0.8,lambda_series = 10.0 ** np.linspace(-1, -7, 11), 
+                      regularization = 'elastic_net',l1_ratio=0.8,lambda_series = 10.0 ** np.linspace(-0.5, -7, 10), 
                       optimizer = 'adam', learning_rate = 1e-3)
     
     model_cv.fit(X_train, Y_train, group_idx = trial_id_train)

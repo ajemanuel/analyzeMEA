@@ -106,6 +106,8 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
     numUnits = len(units)
 
     psths = np.zeros([int(np.ceil((maxBin-minBin)/bin_size)), numUnits])
+
+    baselinePSTHS = np.zeros([numUnits, int(np.floor((bs_window[1]-bs_window[0])/bin_size)), len(modSamples)]) ## a 3D array to store the baseline PSTHs for each sweep; units x bins x sweeps
     if verbose:
         print('psth size is',psths.shape)
     for i in range(len(modSamples)):
@@ -115,20 +117,32 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
                     psths[int(np.floor(stepSample/bin_samples))-1, np.where(units == stepSpike)[0][0]] += 1 ## for the rare instance when a spike is detected at the last sample of a sweep
                 else:
                     psths[int(np.floor(stepSample/bin_samples)), np.where(units == stepSpike)[0][0]] += 1
+                
+                if stepSample > (bs_window[0]-minTime)*sample_rate and stepSample < (bs_window[1]-minTime)*sample_rate: ## if the spike is in the baseline window
+                    baselinePSTHS[np.where(units == stepSpike)[0][0], int(np.floor((stepSample-(bs_window[0]-minTime)*sample_rate)/bin_samples)), i] += 1
+    
     psth_dict = {}
     if rate:
         psth_dict['psths'] = psths/bin_size/len(modSamples) # in units of Hz
+        baselinePSTHS = baselinePSTHS/bin_size ## convert to rate
     else:
         psth_dict['psths'] = psths/len(modSamples) # in units of spikes/trial in each bin
 
+
+
+    baselinePSTHS = np.reshape(baselinePSTHS,[baselinePSTHS.shape[0], baselinePSTHS.shape[1]*baselinePSTHS.shape[2]]) # concatenates baseline periods for each sweep into a single array (units x units)
+    baselineMeans = np.mean(baselinePSTHS,axis=1) ## baseline mean for each unit
+    baselineSTDs = np.std(baselinePSTHS,axis=1) ## baseline std for each unit
+    
     psths_bs = np.copy(np.transpose(psth_dict['psths']))
     psths_z = np.copy(np.transpose(psth_dict['psths']))
     for i,psth in enumerate(psths_bs):
-        tempMean = np.mean(psth[int((bs_window[0]-minBin)/bin_size):int((bs_window[1]-minBin)/bin_size)])
-        tempStDev = np.std(psth[int((bs_window[0]-minBin)/bin_size):int((bs_window[1]-minBin)/bin_size)])
+        #tempMean = np.mean(psth[int((bs_window[0]-minBin)/bin_size):int((bs_window[1]-minBin)/bin_size)])
+        #tempStDev = np.std(psth[int((bs_window[0]-minBin)/bin_size):int((bs_window[1]-minBin)/bin_size)])
         #print(tempMean)
-        psths_bs[i] = psth - tempMean
-        psths_z[i] = psths_bs[i]/tempStDev
+        psths_bs[i] = psth - baselineMeans[i]
+        psths_z[i] = psths_bs[i]/baselineSTDs[i]
+
     psth_dict['psths_bs'] = np.transpose(psths_bs)
     psth_dict['psths_z'] = np.transpose(psths_z)
     psth_dict['bin_size'] = bin_size # in s
@@ -136,6 +150,7 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
     psth_dict['xaxis'] = np.arange(minBin,maxBin,bin_size)
     psth_dict['units'] = units
     psth_dict['num_sweeps'] = len(samples)
+
     return psth_dict
 
 def singleSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, duration=None, verbose=False, rate=True, bs_window=[0, 0.25]):
