@@ -443,6 +443,60 @@ def plotMeanOris(trialRates,units,OSunits, save=True, saveFile='Oris_Mean_Rate.p
         plt.savefig(saveFile, transparent=True,bbox_inches='tight')
 
 
+def plotMeanOris_withError(trialRates,units,OSunits, save=True, saveFile='Oris_Mean_Rate.pdf',errorBars='95CI'):
+    """
+    Example function call:
+    analyzeMEA.wheel.plotMeanOris_withError(trialRates_narrow,np.unique(goodSpikes),OSunits,save=False,errorBars='95CI')
+    """
+    
+    oris = [-45, 0, 45, 90]
+    for unit in range(len(units)):
+        f = plt.figure(figsize=[3,2])
+        ax = plt.axes()
+        
+        resps = []
+        errs = []
+        errs_low = []
+        errs_high = []
+        for ori in [1,2,3,4]:
+            resps.append(np.mean(trialRates[ori][:,unit]))
+            if errorBars == 'sd':
+                errs.append(np.std(trialRates[ori][:,unit]))
+            elif errorBars == 'sem':
+                errs.append(np.std(trialRates[ori][:,unit])/np.sqrt(trialRates[ori][:,unit]).shape[0])
+            elif errorBars == '95CI':
+                bs = scipy.stats.bootstrap((trialRates[ori][:,unit],),np.mean)
+                errs_low.append(bs.confidence_interval.low)
+                errs_high.append(bs.confidence_interval.high)
+
+        norm_resps = resps/np.max(resps)
+
+        if units[unit] in OSunits:
+            ax.plot(oris,norm_resps,marker='o',ms=4,color='gray',markerfacecolor='white',lw=0.75)
+            ax.set_title('Unit {0}, {1:0.1f} Hz'.format(units[unit],np.max(resps)),fontdict={'color':'r'})
+        else:
+            ax.plot(oris,norm_resps,marker='o',ms=4,color='gray',markerfacecolor='white',lw=0.75)
+            ax.set_title('Unit {0}, {1:0.1f} Hz'.format(units[unit],np.max(resps)))
+        if errorBars == '95CI':
+            errs_low = errs_low/np.max(resps) ## scale to normalized values
+            errs_high = errs_high/np.max(resps) ## scale to normalized values
+            for ori in [1,2,3,4]:
+                ax.plot([oris[ori-1],oris[ori-1]],[errs_low[ori-1],errs_high[ori-1]],color='gray',solid_capstyle='butt',zorder=-1,lw=0.75)
+        else:
+            errs = errs/np.max(resps) ## scale to normalized values
+            for ori in [1,2,3,4]:
+                ax.plot([oris[ori-1],oris[ori-1]],[norm_resps[ori-1]-errs[ori-1],norm_resps[ori-1]+errs[ori-1]],color='gray',solid_capstyle='butt',zorder=-1,lw=0.75)
+        ax.set_ylabel('Norm. Mean Firing Rate')
+        
+        ax.set_xlabel('Orientation')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_ylim([-0,1.2])
+        ax.set_xticks([-45,0,45,90])
+        
+        if save:
+            plt.savefig(saveFile, transparent=True,bbox_inches='tight')
+
 ### helper functions
 
 def TwoSampleT2Test(X, Y):
@@ -594,12 +648,16 @@ def findTemplateMatches(images,depthMap=None, rotFactor=[-1],scaleFactor=0.210,
         depthMap = loadDepthMap(depthMapFile)
     maxLoc = []
     for i, image in enumerate(images):
-        if i % 50 == 0:
-            print('On image {} of {}'.format(i, len(images)))
-        if len(rotFactor) == 1:
-            maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[0],scaleFactor=scaleFactor))
-        elif len(rotFactor) == len(images):
-            maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[i],scaleFactor=scaleFactor))
+        try:
+            if i % 50 == 0:
+                print('On image {} of {}'.format(i, len(images)))
+            if len(rotFactor) == 1:
+                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[0],scaleFactor=scaleFactor))
+            elif len(rotFactor) == len(images):
+                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[i],scaleFactor=scaleFactor))
+        except AttributeError:
+            print('Err on image {}'.format(i))
+            maxLoc.append(np.nan)
     templateMaches = np.array(maxLoc)
     return templateMaches
 
