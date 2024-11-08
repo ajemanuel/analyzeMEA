@@ -205,17 +205,24 @@ def singleSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, dur
     else:
         psth_dict['psths'] = psths # in units of spikes/trial in each bin
 
+
+    baseline_psth = np.copy(psth_dict['psths'])[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size),:,:] ## baseline PSTHs for each sweep; bins x sweeps x units
+    baseline_psth = np.transpose(baseline_psth,[2,1,0]) ## rearrange to units x sweeps x bins
+    baseline_psth = np.reshape(baseline_psth,[baseline_psth.shape[0],baseline_psth.shape[1]*baseline_psth.shape[2]]) # concatenates baseline periods for each sweep into a single array (units x bins)
+
+    baseline_mean = np.mean(baseline_psth,axis=1) ## baseline mean for each unit
+    baseline_std = np.std(baseline_psth,axis=1) ## baseline std for each unit
+
     psths_mean = np.mean(psth_dict['psths'],axis=1) ## collapse to mean across sweeps
     psths_sd = np.std(psth_dict['psths'],axis=1)
     psths_bs = np.copy(np.transpose(psths_mean))
     psths_z = np.copy(np.transpose(psths_mean))
     for i,psth in enumerate(psths_bs):
-        tempMean = np.mean(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
-        tempStDev = np.std(psth[int(bs_window[0]/bin_size):int(bs_window[1]/bin_size)])
-        #print(tempMean)
-        psths_bs[i] = psth - tempMean
-        psths_z[i] = (psth - tempMean)/tempStDev
+        psths_bs[i] = psth - baseline_mean[i] ## note that this modifies psth
+        psths_z[i] = psth/baseline_std[i]
     psth_dict['psths_mean'] = psths_mean
+    psth_dict['baseline_mean'] = baseline_mean
+    psth_dict['baseline_std'] = baseline_std
     psth_dict['psths_sd'] = psths_sd
     psth_dict['psths_sem'] = psths_sd/np.sqrt(psths.shape[1])
     psth_dict['psths_bs'] = np.transpose(psths_bs)
