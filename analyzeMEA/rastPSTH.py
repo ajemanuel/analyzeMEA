@@ -143,6 +143,8 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
         psths_bs[i] = psth - baselineMeans[i]
         psths_z[i] = psths_bs[i]/baselineSTDs[i]
 
+    psth_dict['baseline_means'] = baselineMeans
+    psth_dict['baseline_stds'] = baselineSTDs
     psth_dict['psths_bs'] = np.transpose(psths_bs)
     psth_dict['psths_z'] = np.transpose(psths_z)
     psth_dict['bin_size'] = bin_size # in s
