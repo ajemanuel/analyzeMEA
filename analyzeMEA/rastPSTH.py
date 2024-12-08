@@ -119,7 +119,10 @@ def makeSweepPSTH(bin_size, samples, spikes,sample_rate=20000, units=None, durat
                     psths[int(np.floor(stepSample/bin_samples)), np.where(units == stepSpike)[0][0]] += 1
                 
                 if stepSample > (bs_window[0]-minTime)*sample_rate and stepSample < (bs_window[1]-minTime)*sample_rate: ## if the spike is in the baseline window
-                    baselinePSTHS[np.where(units == stepSpike)[0][0], int(np.floor((stepSample-(bs_window[0]-minTime)*sample_rate)/bin_samples)), i] += 1
+                    try:
+                        baselinePSTHS[np.where(units == stepSpike)[0][0], int(np.floor((stepSample-(bs_window[0]-minTime)*sample_rate)/bin_samples)), i] += 1
+                    except IndexError:
+                        pass
     
     psth_dict = {}
     if rate:
