@@ -34,46 +34,96 @@ def find_footfalls_DEG(predictions):
     """
     outDict = {}
     
+    footfalls = []
+    footrises = []
+    durations = []
+    stepLengths = []
     labels = []
+    frame_offset = 0 # cumulative offset to ensure continuous frame numbering
 
     for file in predictions:
-        labels.append(pd.read_csv(file))
+        print(frame_offset)
+        label = pd.read_csv(file)
+        contact = np.bool8(label['contact']+label['partialContact'] > 0)
+        footfall = np.where(contact[1:] > contact[:-1])[0] + frame_offset
+        footrise = np.where(contact[1:] < contact[:-1])[0] + frame_offset
+        print(f"File: {file}, Footfalls: {len(footfall)}, Footrises: {len(footrise)}")
+
+        if len(footfall) > len(footrise):
+            print('No contact at beginning of recording')
+            try:
+                stepLength = footfall[:-1][1:] - footrise[:-1]# reducing the last stepLenth
+                duration = footrise - footfall[:-1]
+                footfalls.extend(footfall[:-1])  # Extend ensures a flat list
+                footrises.extend(footrise)
+                durations.extend(duration)
+                stepLengths.extend(stepLength)
+                stepLengths.extend([-1])
+            except Exception as e:
+                print(f"Error processing file {file}: {e}")
+        elif len(footfall) < len(footrise):
+            print('No contact at end of recording')
+            try:
+                stepLength = footfall[1:] - footrise[1:][:-1]
+                duration = footrise[1:] - footfall
+                footfalls.extend(footfall)
+                footrises.extend(footrise[1:])
+                durations.extend(duration)
+                stepLengths.extend(stepLength)
+                stepLengths.extend([-1])
+            except Exception as e:
+                print(f"Error processing file {file}: {e}")
+        else:
+            try:
+                if contact[0]:  # The first frame indicates foot is in contact
+                    print('Foot in contact at both start and end of recording')
+                    stepLength = footfall[:-1][1:] - footrise[1:][:-1]
+                    duration = footrise[1:] - footfall[:-1]
+                    footfalls.extend(footfall[:-1])
+                    footrises.extend(footrise[1:])
+                    durations.extend(duration)
+                    stepLengths.extend(stepLength)
+                    if len(footfall) > 0:
+                        stepLengths.extend([-1])
+                else:
+                    print('No contact at start but aligned otherwise')
+                    stepLength = footfall[1:] - footrise[:-1]
+                    duration = footrise - footfall
+                    footfalls.extend(footfall)
+                    footrises.extend(footrise)
+                    durations.extend(duration)
+                    stepLengths.extend(stepLength)
+                    if len(footfall) > 0:
+                        stepLengths.extend([-1])
+            except Exception as e:
+                print(f"Error processing file {file}: {e}")
+        # Update frame_offset for the next file
+        print(len(footfalls),len(stepLengths))
+        frame_offset += len(contact)
+        labels.append(label)
+
+    # Convert lists to arrays for final outputs
+    footfalls = np.array(footfalls)
+    footrises = np.array(footrises)
+    durations = np.array(durations)
+    stepLengths = np.array(stepLengths)
     labels = pd.concat(labels,ignore_index=True)
-
-    contact = np.bool8(labels['contact']+labels['partialContact'] > 0)
-    footfalls = np.where(contact[1:] > contact[:-1])[0]
-    footrises = np.where(contact[1:] < contact[:-1])[0]
-
+    print('Total footfall shape:', footfalls.shape)
+    print('Total footrise shape:', footrises.shape)
+    print('Total durations shape:', durations.shape)
+    print('Total step length shape:', stepLengths.shape)
+    outDict['footfalls_filtered'] = footfalls[(durations > 15) & (stepLengths > 8)]
+    outDict['footrises_filtered'] = footrises[(durations > 15) & (stepLengths > 8)]
+    outDict['durations_filtered'] = durations[(durations > 15) & (stepLengths > 8)]
+    outDict['stepLengths_filtered'] = stepLengths[(durations > 15) & (stepLengths > 8)]
+    
+    
     footfallMatrix  = np.zeros([len(footfalls),300])
-
     for i, plant in enumerate(footfalls):
         if (plant > 100) and (plant < labels.shape[0]-200):
             footfallMatrix[i,:] += 1* np.array(labels['partialContact'])[plant-100:plant+200]
             footfallMatrix[i,:] += 2* np.array(labels['contact'])[plant-100:plant+200]
             footfallMatrix[i, footfallMatrix[i,:] == 3] = 2
-
-    if footfalls[0] > footrises[0]: # foot in contact at beginning of recording
-        print('foot in contact at beginning of recording')
-        try:
-            stepLengths = footfalls - footrises
-            print('foot in contact at end of recording')
-        except ValueError:
-            stepLengths = footfalls - footrises[:-1]
-            print('foot not in contact at end of recording')
-        try:
-            durations = footrises[1:] - footfalls
-        except ValueError:
-            durations = footrises[1:] - footfalls[:-1]
-    elif footfalls[0] < footrises[0]: # foot not in contact at beginning of recording
-        print('foot not in contact at beginning of recording')
-        try:
-            stepLengths = footfalls[1:] - footrises
-        except ValueError:
-            stepLengths = footfalls[1:] - footrises[:-1]
-        try:
-            durations = footrises - footfalls
-        except ValueError:
-            durations = footrises - footfalls[:-1]
 
     outDict['labels'] = labels
     outDict['footfalls'] = footfalls
