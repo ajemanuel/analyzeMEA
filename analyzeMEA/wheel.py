@@ -627,7 +627,7 @@ def loadDepthMap(file,cropY=[300,-300]):
 
 
 def estimateRotFactor(image,depthMap,initialEstimate=0,resolution = 0.2, scaleFactor=0.210,
-                     cropY=[80,250],cropX=[10,325]):
+                     cropY=[80,250],cropX=[10,325], flipY=False):
     
     rots = np.arange(initialEstimate-5,initialEstimate+5,resolution)
     corrCoefs = []
@@ -636,8 +636,10 @@ def estimateRotFactor(image,depthMap,initialEstimate=0,resolution = 0.2, scaleFa
         
         cropped_im = rotate_image(image,rotFactor)[cropY[0]:cropY[1],cropX[0]:cropX[1]]
         croppedFrame = cv2.cvtColor(cropped_im, cv2.COLOR_BGR2GRAY)
+        if flipY:
+            croppedFrame = cv2.flip(croppedFrame,0)
         croppedFrame_thresh = cv2.adaptiveThreshold(croppedFrame,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-                                                    cv2.THRESH_BINARY,35,-25)
+                                                    cv2.THRESH_BINARY,35,-10)
 
 
         D_shrunk = cv2.flip(cv2.resize(np.uint8(depthMap),(0,0),fx=scaleFactor,fy=scaleFactor),1)
@@ -648,17 +650,16 @@ def estimateRotFactor(image,depthMap,initialEstimate=0,resolution = 0.2, scaleFa
     return np.array(corrCoefs)
 
 def estimateRotFactors(images,plot=True,initialEstimate=0,resolution = 0.2, scaleFactor=0.210,
-                     cropY=[80,250],cropX=[10,325],depthMap=None,
+                     cropY=[80,250],cropX=[10,325], flipY=False,depthMap=None,
                      depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
     if depthMap is None:
         depthMap = loadDepthMap(depthMapFile)
     rots = np.arange(initialEstimate-5,initialEstimate+5,resolution)
     coeffs = np.zeros([len(images),len(rots)])
-    depthMap = loadDepthMap(depthMapFile)
     for i, image in enumerate(images):
         print('on image {} of {}'.format(i+1,len(images)))
         corrCoefs = estimateRotFactor(image, depthMap, initialEstimate=initialEstimate,resolution=resolution,scaleFactor=scaleFactor,
-                          cropY=cropY,cropX=cropX)
+                          cropY=cropY,cropX=cropX, flipY=flipY)
         coeffs[i,:] = corrCoefs
     bestRots = np.array([float(rots[np.argmax(coeffs[i,:])]) for i in range(len(coeffs))])
     if plot:
@@ -673,16 +674,19 @@ def estimateRotFactors(images,plot=True,initialEstimate=0,resolution = 0.2, scal
         plt.close()
     return rots, coeffs, bestRots
 
-def findTemplateMatch(image,depthMap=None, rotFactor=-1,scaleFactor=0.210,
+def findTemplateMatch(image,depthMap=None, rotFactor=0,scaleFactor=0.210,
+                      cropY=[80,250],cropX=[10,325], flipY=False,
                       depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
     
     if depthMap is None:
         depthMap = loadDepthMap(depthMapFile)
     
     rotated_im = cv2.cvtColor(rotate_image(image,rotFactor),cv2.COLOR_BGR2GRAY)
-    croppedFrame = rotated_im[80:250,10:326]
+    croppedFrame = rotated_im[cropY[0]:cropY[1],cropX[0]:cropX[1]]
+    if flipY:
+        croppedFrame = cv2.flip(croppedFrame,0)
     croppedFrame_thresh = cv2.adaptiveThreshold(croppedFrame,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-                                                    cv2.THRESH_BINARY,35,-25)
+                                                    cv2.THRESH_BINARY,35,-10)
 
     D_shrunk = cv2.flip(cv2.resize(np.uint8(depthMap),(0,0),fx=scaleFactor,fy=scaleFactor),1)
     D_shrunk_cat = np.concatenate([D_shrunk,D_shrunk[:,:croppedFrame.shape[1]]],axis=1)
@@ -692,7 +696,8 @@ def findTemplateMatch(image,depthMap=None, rotFactor=-1,scaleFactor=0.210,
     #print(np.max(result))
     return resultMax[0][0],resultMax[1][0]
 
-def findTemplateMatches(images,depthMap=None, rotFactor=[-1],scaleFactor=0.210,
+def findTemplateMatches(images,depthMap=None, rotFactor=[0],scaleFactor=0.210,
+                        cropY=[80,250],cropX=[10,325], flipY=False,
                         depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
     if depthMap is None:
         depthMap = loadDepthMap(depthMapFile)
@@ -702,9 +707,13 @@ def findTemplateMatches(images,depthMap=None, rotFactor=[-1],scaleFactor=0.210,
             if i % 50 == 0:
                 print('On image {} of {}'.format(i, len(images)))
             if len(rotFactor) == 1:
-                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[0],scaleFactor=scaleFactor))
+                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,
+                                                cropY=cropY,cropX=cropX, flipY=flipY,
+                                                rotFactor=rotFactor[0],scaleFactor=scaleFactor))
             elif len(rotFactor) == len(images):
-                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,rotFactor=rotFactor[i],scaleFactor=scaleFactor))
+                maxLoc.append(findTemplateMatch(image,depthMap=depthMap,
+                                                cropY=cropY,cropX=cropX, flipY=flipY,
+                                                rotFactor=rotFactor[i],scaleFactor=scaleFactor))
         except AttributeError:
             print('Err on image {}'.format(i))
             maxLoc.append(np.nan)
@@ -768,7 +777,9 @@ def alignToMapPositions(mapPositions,depthMap=None,scaleFactor=0.210,imageSize=[
     return alignedImages
 
 
-def runAlignment(firstImages,videoIndex, images, positions,
+def runAlignment(firstImages,videoIndex, images, positions, scaleFactor=0.210, cropY=[80,250],
+                 cropX=[10, 325],
+                 flipY=False,
                    depthMap=None,
                    depthMapFile=r'Z:/HarveyLab/Tier1/Alan/Data/20220831/sparse_bumps_wheel_v2_220712_data.mat'):
     """
@@ -837,11 +848,17 @@ def runAlignment(firstImages,videoIndex, images, positions,
     """
     if depthMap is None:
         depthMap = loadDepthMap(depthMapFile)
-    rots, coeffs, bestRots = estimateRotFactors(firstImages)
+        print('Loading depth map from {}'.format(depthMapFile))
+    rots, coeffs, bestRots = estimateRotFactors(firstImages, scaleFactor=scaleFactor,
+                                                cropY=cropY, cropX=cropX, flipY=flipY,
+                                                 depthMap=depthMap)
     ffRots = bestRots[videoIndex] ## creating list of rotation factors for each image
-    templateMatches = findTemplateMatches(images, depthMap=depthMap, rotFactor=ffRots)
-    mapPositions = findMapPositions(templateMatches, positions, images[0], ffRots,depthMap=depthMap)
-    alignedImages = alignToMapPositions(mapPositions,depthMap=depthMap)
+    templateMatches = findTemplateMatches(images, depthMap=depthMap,
+                                           cropY=cropY, cropX=cropX, flipY=flipY,
+                                           scaleFactor=scaleFactor, rotFactor=ffRots)
+    mapPositions = findMapPositions(templateMatches, positions, images[0], ffRots,
+                                    scaleFactor=scaleFactor, cropY=cropY, cropX=cropX, depthMap=depthMap)
+    alignedImages = alignToMapPositions(mapPositions, scaleFactor=scaleFactor, depthMap=depthMap)
 
     return mapPositions, alignedImages
 
