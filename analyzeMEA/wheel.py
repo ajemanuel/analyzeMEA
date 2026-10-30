@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
@@ -884,7 +885,8 @@ def crop_aligned_images(alignedImages, dim1_length = 30, dim2_length=50, dsFacto
 
     return alignedImages_c_ds
 
-def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None, units=None,save=True, standardizePredictors=False):
+def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageInd=None,
+                units=None,save=True, savePath=None, standardizePredictors=False):
     """
     Use GLM to generate receptive fields.
     Predict number of spikes by weighting number of bumps in each pixel of the downsampled images, which contain the stimulus aligned to the center of the paw.
@@ -956,7 +958,12 @@ def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageIn
             plt.xticks([])
             plt.yticks([])
             if save:
-                plt.savefig('GLM_RF_Neuron{}.pdf'.format(neuron),bbox_inches='tight',dpi=600,transparent=True)
+                if savePath is None:
+                    plt.savefig('GLM_RF_Neuron{}.pdf'.format(neuron),bbox_inches='tight',dpi=600,transparent=True)
+                else:
+                    if os.path.exists(savePath) == False:
+                        os.makedirs(savePath)
+                    plt.savefig(os.path.join(savePath,'GLM_RF_Neuron{}.pdf'.format(neuron)),bbox_inches='tight',dpi=600,transparent=True)
             plt.show()
             plt.close()
     if save:
@@ -976,9 +983,14 @@ def locationGLM(dsImages,responses,additionalPredictors=None, plot=True, imageIn
         outDict['Y'] = Y
         outDict['additionalPredictors'] = additionalPredictors
         
-
-        with open('GLM_RF_results_{}.pickle'.format(timestamp.strftime('%Y%m%d_%H%M%S')),'wb') as handle:
-            pickle.dump(outDict,handle,protocol=pickle.HIGHEST_PROTOCOL)
+        if savePath is None:
+            with open('GLM_RF_results_{}.pickle'.format(timestamp.strftime('%Y%m%d_%H%M%S')),'wb') as handle:
+                    pickle.dump(outDict,handle,protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            if os.path.exists(savePath) == False:
+                os.makedirs(savePath)
+            with open(os.path.join(savePath,'GLM_RF_results_{}.pickle'.format(timestamp.strftime('%Y%m%d_%H%M%S'))),'wb') as handle:
+                pickle.dump(outDict,handle,protocol=pickle.HIGHEST_PROTOCOL)
 
         
     return model_cv
